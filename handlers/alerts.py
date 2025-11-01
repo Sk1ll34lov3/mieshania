@@ -6,7 +6,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from utils import is_chat_admin
-from services.air_alerts import (   # ✅ новий правильний імпорт
+from services.air_alerts import (   
     set_air_city,
     set_air_region,
     air_status_text,
