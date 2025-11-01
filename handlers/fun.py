@@ -25,15 +25,16 @@ async def roast_cmd(m: Message):
     if m.from_user:
         remember_user(m.chat.id, m.from_user.id, m.from_user.username)
 
-    uid, uname = extract_mention(m)  # повертає (user_id, username|None)
+    uid, uname = extract_mention(m)  # returns (user_id, username|None)
+
     if not uid and not uname:
         return await m.answer("Кого? Використай: <code>/roast @username</code>")
 
-    # ім'я для підстановки у шаблон
+# name to substitute into the pattern
     name_for_template = (uname or "").lstrip("@") or "ти"
     line = pick_personal_joke(m.chat.id, name_for_template)
 
-    # таргет для відповіді (HTML у бота вже ввімкнено в Bot(..., parse_mode=HTML))
+# target for response (HTML is already enabled in the bot in Bot(..., parse_mode=HTML))
     target = f"@{uname}" if uname else f"<a href='tg://user?id={uid}'>ти</a>"
     await m.answer(f"{target}, {line}")
 
