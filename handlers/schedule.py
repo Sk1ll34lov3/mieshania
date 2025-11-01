@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # handlers/schedule.py
-
+# enable air alarm monitoring only if there is a token
 import asyncio
 import random
 import time
@@ -15,7 +15,7 @@ from aiogram.types import Message
 from utils import upsert_chat, get_chat, in_quiet
 from db import db
 from services.jokes import pick_joke_maybe_gpt
-from services.air_alerts import air_alert_loop  # фоновий моніторинг тривог
+from services.air_alerts import air_alert_loop  # background alarm monitoring
 
 router = Router()
 
@@ -186,7 +186,6 @@ def start_background_tasks(bot):
     loop.create_task(random_loop(bot))
     loop.create_task(morning_blast_loop(bot))
 
-    # підключаємо моніторинг повітряних тривог тільки якщо є токен
     from config import ALERTS_TOKEN
     if ALERTS_TOKEN:
         loop.create_task(air_alert_loop(bot))
