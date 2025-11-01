@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 
-from config import BOT_TOKEN, log, ADMINS            # <-- додано ADMINS
+from config import BOT_TOKEN, log, ADMINS            
 from db import ensure_schema
 from handlers.basic import router as basic_router
 from handlers.fun import router as fun_router
@@ -14,10 +14,9 @@ from handlers.schedule import router as schedule_router, start_background_tasks
 from handlers.alerts import router as alerts_router
 from handlers.misc import router as misc_router
 
-from bot_commands import register_bot_commands, dump_commands_to_text  # <-- додано
+from bot_commands import register_bot_commands, dump_commands_to_text  
 
-async def notify_admins_startup(bot: Bot, text: str):  # <-- було aasync
-    # опційно: відправимо адмінам перелік команд після рестарту
+async def notify_admins_startup(bot: Bot, text: str):  
     for uid in ADMINS:
         try:
             await bot.send_message(uid, f"🤖 Бот перезапущено.\n\n{text}")
@@ -38,20 +37,22 @@ async def main():
 
     me = await bot.get_me()
 
-    # 1) меню команд
+   #1) command menu
     await register_bot_commands(bot)
 
-    # 2) у лог і (опційно) адмінам
+   
+# 2) in the log and (optionally) admins
     commands_text = await dump_commands_to_text(bot)
     log.info("Registered bot commands:\n" + commands_text)
     await notify_admins_startup(bot, commands_text)
 
     log.info(f"Started as @{me.username} (id={me.id})")
 
-    # 3) фонові задачі
+   
+#3) Background tasks
     start_background_tasks(bot)
 
-    # 4) поллінг
+#4) polling
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
