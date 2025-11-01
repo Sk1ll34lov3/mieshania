@@ -12,7 +12,8 @@ from config import (
 )
 from db import db
 
-# ---- дефолти  ----
+# ---- defaults ----
+
 try:
     from config import GPT_JOKES_MODEL
 except Exception:
@@ -24,9 +25,10 @@ except Exception:
 try:
     from config import GPT_JOKES_PROB
 except Exception:
-    GPT_JOKES_PROB = 0.6  #ймов
+    GPT_JOKES_PROB = 0.6  #probability of a gpt joke
 
-# ---- локальний пул ----
+# ---- local pool ----
+
 JOKES_PG13 = [
     "Світло в кінці тунелю — то монітор із продом. Закрий ноут.",
     "План дня: 1) кава 2) паніка 3) імпровізація.",
@@ -37,7 +39,8 @@ JOKES_R18 = [
     "Життя дало лимони — зроби ґан-панч і не пінгуй мене до ранку.",
 ]
 
-# ---- утиліти ----
+
+# ---- utilities ----
 def _weighted_pool_from_db(sql: str, params: tuple = ()) -> List[str]:
     try:
         with db() as conn, conn.cursor() as cur:
@@ -55,7 +58,8 @@ def _weighted_pool_from_db(sql: str, params: tuple = ()) -> List[str]:
         pool.extend([r["text"]] * w)
     return pool
 
-# ---- звичайний жарт ----
+# ---- just a joke ----
+
 def pick_joke(chat_id: int, mode: str) -> str:
     pool = _weighted_pool_from_db(
         "SELECT text, weight FROM jokes WHERE chat_id=%s OR chat_id IS NULL",
@@ -64,7 +68,7 @@ def pick_joke(chat_id: int, mode: str) -> str:
     pool.extend(JOKES_PG13 if (mode or "").lower() == "pg13" else JOKES_R18)
     return random.choice(pool) if pool else "(порожній пул жартів)"
 
-# ---- GPT-генерація (не блокує event loop) ----
+# ---- GPT generation (does not block event loop) ----
 async def gpt_joke(mode: str = "pg13") -> Optional[str]:
     if not (OPENAI_API_KEY and GPT_JOKES_ON):
         return None
@@ -103,7 +107,8 @@ async def pick_joke_maybe_gpt(chat_id: int, mode: str) -> str:
             return g
     return pick_joke(chat_id, mode)
 
-# ---- персональний “roast” ----
+
+# ---- personal “roast” ----
 def pick_personal_joke(chat_id: int, name: str) -> str:
     """
     Повертає персональний підкол з таблиці jokes_personal (тексти з плейсхолдером {name}).
