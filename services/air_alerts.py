@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 # services/air_alerts.py
 import asyncio
-from typing import Tuple, Set, List
+import re
+from typing import Tuple, Set, List, Optional
 import aiohttp
 
 from config import ALERTS_TOKEN, log
@@ -9,6 +10,35 @@ from db import db
 
 KYIV_CITY = "м. Київ"
 KYIV_REGION = "Київська область"
+
+
+def _normalize(title: str) -> str:
+    """Нормалізує назви з API для порівняння."""
+    return re.sub(r"\s+", " ", title.strip()).lower()
+
+
+KYIV_CITY_ALIASES: Set[str] = {
+    _normalize(name)
+    for name in {
+        "м. Київ",
+        "місто Київ",
+        "Київ",
+        "Kyiv",
+        "Kyiv City",
+    }
+}
+
+KYIV_REGION_ALIASES: Set[str] = {
+    _normalize(name)
+    for name in {
+        "Київська область",
+        "Kyivska oblast",
+        "Kyiv Oblast",
+    }
+}
+
+CITY_LOCATION_TYPES = {"city", "capital", "settlement"}
+REGION_LOCATION_TYPES = {"oblast", "region", "state"}
 
 API_URL = "https://api.alerts.in.ua/v1/alerts/active.json"
 POLL_SEC = 30
@@ -46,7 +76,7 @@ async def _fetch_states(session: aiohttp.ClientSession) -> Tuple[Set[str], Set[s
     alerts = data.get("alerts", []) or []
     air = [a for a in alerts if a.get("alert_type") == "air_raid"]
 
-    def _title(a: dict) -> str | None:
+    def _title(a: dict) -> Optional[str]:
         return a.get("location_title") or a.get("title") or a.get("name")
 
     cities_on: Set[str] = set()
@@ -56,10 +86,18 @@ async def _fetch_states(session: aiohttp.ClientSession) -> Tuple[Set[str], Set[s
         name = _title(a)
         if not name:
             continue
-        if lt == "city":
-            cities_on.add(name)
-        elif lt in ("oblast", "region"):
-            regions_on.add(name)
+
+        norm = _normalize(name)
+
+        if lt in CITY_LOCATION_TYPES:
+            cities_on.add(norm)
+        elif lt in REGION_LOCATION_TYPES:
+            regions_on.add(norm)
+
+        if norm in KYIV_CITY_ALIASES:
+            cities_on.add(norm)
+        if norm in KYIV_REGION_ALIASES:
+            regions_on.add(norm)
 
     return cities_on, regions_on
 
@@ -72,9 +110,13 @@ async def air_status_text() -> str:
     try:
         async with aiohttp.ClientSession(headers=headers, timeout=HTTP_TIMEOUT) as s:
             cities, regions = await _fetch_states(s)
+
+        city_on = bool(cities & KYIV_CITY_ALIASES)
+        region_on = bool(regions & KYIV_REGION_ALIASES)
+
         parts = [
-            "Київ: " + ("🔴 ТРИВОГА" if KYIV_CITY in cities else "🟢 ВІДБІЙ"),
-            "Київська область: " + ("🔴 ТРИВОГА" if KYIV_REGION in regions else "🟢 ВІДБІЙ"),
+            "Київ: " + ("🔴 ТРИВОГА" if city_on else "🟢 ВІДБІЙ"),
+            "Київська область: " + ("🔴 ТРИВОГА" if region_on else "🟢 ВІДБІЙ"),
         ]
         return "\n".join(parts)
     except Exception as e:
@@ -88,17 +130,18 @@ async def air_alert_loop(bot):
 
     headers = {"Authorization": f"Bearer {ALERTS_TOKEN}"}
 
-    last_city: bool | None = None
-    last_region: bool | None = None
+    last_city: Optional[bool] = None
+    last_region: Optional[bool] = None
     backoff = POLL_SEC
 
     while True:
+        sleep_for = POLL_SEC
         try:
             async with aiohttp.ClientSession(headers=headers, timeout=HTTP_TIMEOUT) as session:
                 cities, regions = await _fetch_states(session)
 
-            now_city = KYIV_CITY in cities
-            now_region = KYIV_REGION in regions
+            now_city = bool(cities & KYIV_CITY_ALIASES)
+            now_region = bool(regions & KYIV_REGION_ALIASES)
 
             city_chats, region_chats = get_air_chats()
 
@@ -120,11 +163,12 @@ async def air_alert_loop(bot):
 
             last_city = now_city
             last_region = now_region
-
             backoff = POLL_SEC
-            await asyncio.sleep(POLL_SEC)
 
         except Exception as e:
             log.warning(f"air_alert_loop error: {e}")
-            await asyncio.sleep(min(max(backoff, 15), 120))
+            sleep_for = min(max(backoff, 15), 120)
             backoff = min(backoff + 10, 120)
+
+        finally:
+            await asyncio.sleep(sleep_for)
