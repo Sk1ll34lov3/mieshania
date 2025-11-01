@@ -15,20 +15,20 @@ from html import unescape as html_unescape
 import requests
 from aiogram.types import FSInputFile, InputMediaPhoto, InputMediaVideo
 
-# Шлях до yt-dlp у твоєму venv
+# Path to yt-dlp in your venv
 YTDLP_BIN = "/var/opt/mieshania/.venv/bin/yt-dlp"
 
-# Лог-фаїл для трейсингу даунлоада
+# Log file for download tracing
 LOG_FILE = "/var/log/mieshania.downloader.log"
 
-# Які домени вважаємо підтримуваними
+# Which domains do we consider supported?
 VIDEO_HOSTS = (
     "youtube.com", "youtu.be",
     "tiktok.com", "vm.tiktok.com",
     "instagram.com", "www.instagram.com", "m.instagram.com",
 )
 
-# Регекси для нормалізації IG-URL (витягуємо код і вибираємо p/ або reel/)
+# Regex for IG-URL normalization (extract the code and select p/ or reel/)
 IG_CODE_RE = re.compile(
     r"https?://(?:www\.|m\.)?instagram\.com/(?:p|reel)/([A-Za-z0-9_-]{5,})",
     re.I,
@@ -50,7 +50,7 @@ META_TITLE_RE = re.compile(
 SAFE_NAME_RE = re.compile(r"[^a-zA-Z0-9\.\-_ ]+")
 
 
-# ------------------------- Логер -------------------------
+# ------------------------- Logger -------------------------
 def _log(msg: str) -> None:
     """Пише рядок у лог-файл (тихо і без вилетів)."""
     try:
@@ -62,7 +62,7 @@ def _log(msg: str) -> None:
         pass
 
 
-# --------------------- Публічний API ---------------------
+# --------------------- Public API ---------------------
 def is_supported(url: str) -> bool:
     """Чи схожий URL на підтримуваний відео-хост."""
     u = (url or "").lower()
@@ -76,7 +76,7 @@ async def download_url(chat_id: int, url: str, bot) -> None:
     """
     items, title = await asyncio.to_thread(_download_sync, url)  # items: List[{"path":..., "type": "photo"|"video"}]
 
-    # Розкладаємо по групах, враховуючи обмеження Telegram
+  # We arrange into groups, taking into account Telegram restrictions
     photos_group, videos_group, docs = [], [], []
     for it in items:
         p = it["path"]
@@ -100,7 +100,8 @@ async def download_url(chat_id: int, url: str, bot) -> None:
     album_paths = photos_group + videos_group
 
     if len(album_paths) > 1:
-        # Відправляємо перші 10 елементів альбомом
+      
+# Send the first 10 items as an album
         media = []
         for idx, p in enumerate(album_paths[:10]):
             inp = FSInputFile(p)
@@ -110,15 +111,15 @@ async def download_url(chat_id: int, url: str, bot) -> None:
                 media.append(InputMediaVideo(media=inp, caption=title if idx == 0 else None))
         await bot.send_media_group(chat_id, media)
 
-        # Якщо щось не влізло (більше 10) — довантажуємо як документи
+       # If something didn't fit (more than 10) - upload it as documents
         for p in album_paths[10:]:
             await bot.send_document(chat_id, FSInputFile(p), caption=title)
 
-        # Великі файли також як документи
+       # Large files also as documents
         for p in docs:
             await bot.send_document(chat_id, FSInputFile(p), caption=title)
     else:
-        # Один файл → як і раніше
+     
         it = items[0]
         p, t = it["path"], it["type"]
         try:
@@ -138,7 +139,8 @@ async def download_url(chat_id: int, url: str, bot) -> None:
             else:
                 await bot.send_document(chat_id, f, caption=title)
 
-    # Прибираємо тимчасові файли
+    
+# Clean up temporary files
     for it in items:
         try:
             os.remove(it["path"])
@@ -146,7 +148,7 @@ async def download_url(chat_id: int, url: str, bot) -> None:
             pass
 
 
-# --------------------- Внутрішня логіка ------------------
+# --------------------- Internal Logic ------------------
 def _sanitize_name(name: str, max_len: int = 80) -> str:
     name = name.strip().replace("\n", " ").replace("\r", " ")
     name = SAFE_NAME_RE.sub("_", name)
@@ -384,13 +386,13 @@ def _download_sync(url: str) -> Tuple[List[Dict[str, str]], str]:
     """
     _log(f"download START: {url}")
     with tempfile.TemporaryDirectory() as td:
-        # ВАЖЛИВО: унікальні імена для multi-entry (каруселі)
+      # IMPORTANT: unique names for multi-entry (carousels)
         outtmpl = os.path.join(td, "%(title).80s-%(autonumber)03d.%(ext)s")
         cmds = _build_cmds(url, outtmpl)
 
         last_err: Optional[Exception] = None
 
-        # 1) yt-dlp спроби
+        # 1) yt-dlp attempts
         for i, cmd in enumerate(cmds, 1):
             try:
                 _log(f"[try {i}/{len(cmds)}]")
@@ -401,7 +403,7 @@ def _download_sync(url: str) -> Tuple[List[Dict[str, str]], str]:
                 last_err = e
                 _log(f"[try {i}] FAIL: {e}")
 
-        # 2) Якщо IG і yt-dlp не вдалося — fallback (1 медіа)
+       # 2) If IG and yt-dlp failed — fallback (1 media)
         if last_err and "instagram.com" in url.lower():
             try:
                 cookies_path = _pick_cookies_for(url)
@@ -418,7 +420,8 @@ def _download_sync(url: str) -> Tuple[List[Dict[str, str]], str]:
             _log(f"ALL FAIL for {url}")
             raise last_err
 
-        # 3) Забираємо ВСІ файли, що викачав yt-dlp (карусель → кілька)
+       
+# 3) We remove ALL files downloaded by yt-dlp (carousel → several)
         paths = []
         for p in sorted(pathlib.Path(td).glob("*")):
             if p.is_file():
@@ -426,7 +429,8 @@ def _download_sync(url: str) -> Tuple[List[Dict[str, str]], str]:
         if not paths:
             raise RuntimeError("Файли після завантаження не знайдено")
 
-        # 4) Визначимо типи та перенесемо у стабільну папку
+       
+# 4) Define the types and move them to a stable folder
         final_dir = "/var/opt/mieshania/tmp"
         os.makedirs(final_dir, exist_ok=True)
 
@@ -442,9 +446,11 @@ def _download_sync(url: str) -> Tuple[List[Dict[str, str]], str]:
                 shutil.copy2(p, final_path)
             items.append({"path": final_path, "type": media_type})
 
-        # 5) Тайтл — з першого файлу (до суфікса -NNN)
+      
+# 5) Title — from the first file (before the suffix -NNN)
         base_stem = pathlib.Path(paths[0]).stem
-        # відрізаємо -001/-002...
+
+        # cut off -001/-002...
         if "-" in base_stem and base_stem.rsplit("-", 1)[-1].isdigit():
             title_raw = base_stem.rsplit("-", 1)[0]
         else:
