@@ -58,7 +58,49 @@ COBALT_MAX_FILE_MB=49
 DB_HOST=...
 ```
 
-## Важливі нюанси
+## Instagram сесія (instagrapi)
+
+Бот використовує `instagrapi` для скачки контенту Instagram коли Cobalt не справляється (пости, каруселі, сторіс).
+
+- **Акаунт:** `solov__design`
+- **Файл сесії:** `/var/opt/mieshania/ig_session.json` (на VPS) та `ig_session.json` (локально)
+- **Термін дії сесії:** ~2–4 тижні
+
+### Коли сесія протухла
+
+Бот автоматично відправляє адмінам в Telegram:
+> ⚠️ Instagram сесія Мєшані протухла! Запусти `python refresh_ig_session.py` локально
+
+### Як оновити сесію
+
+**ВАЖЛИВО:** запускай тільки з residential IP (домашній Wi-Fi або мобільний хотспот). VPS і datacenter IP — заблоковані Instagram.
+
+```powershell
+cd C:\repos\git\my-git\mieshania-git
+python refresh_ig_session.py
+```
+
+Скрипт інтерактивно:
+1. Логінить `solov__design` в Instagram
+2. Зберігає `ig_session.json` локально
+3. Пропонує SCP на VPS + рестарт бота
+
+### Чому не можна авто-реlogin з VPS
+
+Instagram блокує логіни з datacenter IP з challenge типу `com.bloks.www.ig.challenge.redirect.async`. Тому `instagram_client.py` **не намагається ре-логінитись автоматично** — тільки завантажує готову сесію з файлу.
+
+### Структура fallback для Instagram
+
+```
+Cobalt API → FAIL
+    ↓
+instagrapi (ig_session.json) → якщо сесія протухла: IGSessionExpiredError → admin TG alert
+    ↓
+yt-dlp з cookies_instagram.txt (стаpі куки, може не працювати)
+    ↓
+Instagram scrape fallback
+```
+
 - **Куки більше не потрібні** для Instagram/TikTok — Cobalt сам вирішує авторизацію
 - `cookies_instagram.txt`, `cookies_tiktok.txt` досі є в проекті — використовуються тільки як fallback yt-dlp
 - Telegram ліміт на медіа-альбом — **10 елементів**
