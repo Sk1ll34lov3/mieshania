@@ -17,6 +17,17 @@ import requests
 from aiogram.types import FSInputFile, InputMediaPhoto, InputMediaVideo
 
 try:
+    from instagram_client import (
+        download_story_by_url as _ig_story_download,
+        download_media_by_url as _ig_media_download,
+    )
+    INSTAGRAPI_AVAILABLE = True
+except Exception:
+    INSTAGRAPI_AVAILABLE = False
+    _ig_story_download = None
+    _ig_media_download = None
+
+try:
     from config import (
         COBALT_ENABLED,
         COBALT_API_URL,
@@ -406,14 +417,17 @@ def _try_instagram_scrape_fallback(url: str) -> Optional[str]:
 
 def _download_with_fallbacks_sync(url: str, mode: str = "auto") -> Tuple[List[Dict[str, str]], str]:
     """
-    cobalt.tools → yt-dlp → (IG scrape fallback) strategy.
+    cobalt.tools → instagrapi (IG) → yt-dlp → IG scrape fallback.
 
     mode: auto|hd|sd|audio|file
     """
     mode = (mode or "auto").lower()
 
-    # ----- COBALT -----
-    if COBALT_ENABLED:
+    _is_ig_story = "instagram.com/stories/" in (url or "").lower()
+    _is_ig = "instagram.com" in (url or "").lower()
+
+    # ----- COBALT (не для Stories — Cobalt їх не підтримує) -----
+    if COBALT_ENABLED and not _is_ig_story:
         _log(f"COBALT START: {url} mode={mode}")
         try:
             if mode == "audio":
@@ -455,6 +469,39 @@ def _download_with_fallbacks_sync(url: str, mode: str = "auto") -> Tuple[List[Di
 
         _log("COBALT FAIL")
 
+    # ----- INSTAGRAPI (для будь-якого Instagram URL) -----
+    if _is_ig and INSTAGRAPI_AVAILABLE:
+        _log(f"INSTAGRAPI START: {url}")
+        try:
+            import tempfile as _tmpfile
+            with _tmpfile.TemporaryDirectory() as td:
+                if _is_ig_story and _ig_story_download:
+                    items_raw = _ig_story_download(url, td)
+                    label = "story"
+                elif _ig_media_download:
+                    items_raw = _ig_media_download(url, td)
+                    label = "instagram"
+                else:
+                    items_raw = []
+                    label = "instagram"
+
+                if items_raw:
+                    os.makedirs(TMP_DIR, exist_ok=True)
+                    items = []
+                    for it in items_raw:
+                        src = it["path"]
+                        dst = os.path.join(TMP_DIR, os.path.basename(src))
+                        try:
+                            os.replace(src, dst)
+                        except Exception:
+                            import shutil as _shutil
+                            _shutil.copy2(src, dst)
+                        items.append({"path": dst, "type": it["type"]})
+                    _log(f"INSTAGRAPI SUCCESS: {len(items)} item(s)")
+                    return items, label
+        except Exception as e:
+            _log(f"INSTAGRAPI FAIL: {e}")
+
     # ----- YT-DLP -----
     _log("FALLBACK YTDLP")
     profile = "auto"
@@ -469,7 +516,7 @@ def _download_with_fallbacks_sync(url: str, mode: str = "auto") -> Tuple[List[Di
         return _download_sync(url, profile=profile)
     except Exception as e:
         # ----- IG scrape fallback -----
-        if "instagram.com" in (url or "").lower():
+        if _is_ig:
             media = _try_instagram_scrape_fallback(url)
             if media:
                 _log("IG SCRAPE FALLBACK SUCCESS")
@@ -842,8 +889,7 @@ async def download_url(chat_id: int, url: str, bot, mode: str = "auto") -> None:
             # аудіо шлемо нижче окремо (щоб не було дубляжу для multi-file)
             pass
         elif t == "photo":
-            # ВАЖЛИВО: одиночне фото шлемо як документ, щоб Telegram не обрізав
-            await bot.send_document(chat_id, f, caption=title)
+            await bot.send_photo(chat_id, f, caption=title)
         else:
             if size <= 49 * 1024 * 1024:
                 await bot.send_video(chat_id, f, caption=title)
