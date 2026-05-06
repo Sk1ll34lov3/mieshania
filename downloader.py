@@ -20,12 +20,14 @@ try:
     from instagram_client import (
         download_story_by_url as _ig_story_download,
         download_media_by_url as _ig_media_download,
+        IGSessionExpiredError,
     )
     INSTAGRAPI_AVAILABLE = True
 except Exception:
     INSTAGRAPI_AVAILABLE = False
     _ig_story_download = None
     _ig_media_download = None
+    IGSessionExpiredError = RuntimeError  # fallback type
 
 try:
     from config import (
@@ -499,6 +501,8 @@ def _download_with_fallbacks_sync(url: str, mode: str = "auto") -> Tuple[List[Di
                         items.append({"path": dst, "type": it["type"]})
                     _log(f"INSTAGRAPI SUCCESS: {len(items)} item(s)")
                     return items, label
+        except IGSessionExpiredError:
+            raise  # пробрасуємо далі — хендлер нотифікує адмінів
         except Exception as e:
             _log(f"INSTAGRAPI FAIL: {e}")
 

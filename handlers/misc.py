@@ -69,5 +69,20 @@ async def mute_guard_and_autodl(m: Message):
         await m.answer("Секунду, тягну відео…")
         try:
             await download_url(m.chat.id, url, m.bot)
-        except Exception:
-            await m.answer("Не вийшло витягнути відео. Спробуй інше посилання.")
+        except Exception as exc:
+            from instagram_client import IGSessionExpiredError
+            if isinstance(exc, IGSessionExpiredError):
+                await m.answer("❌ Не можу скачати з Instagram — сесія протухла. Чекай, адмін вже в курсі 🔧")
+                from config import ADMINS
+                for admin_id in ADMINS:
+                    try:
+                        await m.bot.send_message(
+                            admin_id,
+                            "⚠️ <b>Instagram сесія Мєшані протухла!</b>\n"
+                            "Запусти <code>python refresh_ig_session.py</code> локально і задеплой.",
+                            parse_mode="HTML",
+                        )
+                    except Exception:
+                        pass
+            else:
+                await m.answer("Не вийшло витягнути відео. Спробуй інше посилання.")

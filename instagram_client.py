@@ -21,6 +21,10 @@ try:
 except ImportError:
     INSTAGRAPI_AVAILABLE = False
 
+
+class IGSessionExpiredError(RuntimeError):
+    """Сесія Instagram протухла — треба оновити ig_session.json локально."""
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -78,9 +82,9 @@ def _load_session(cl: "Client") -> bool:
         with open(SESSION_FILE, "r", encoding="utf-8") as f:
             settings = json.load(f)
         cl.set_settings(settings)
-        # Перевіряємо сесію без повторного логіну
-        cl.get_timeline_feed()
-        _log("SESSION: loaded from file OK")
+        # НЕ викликаємо get_timeline_feed() — це тригерить challenge з datacenter IP.
+        # Просто завантажуємо сесію. Якщо протухла — перший реальний запит впаде.
+        _log("SESSION: loaded from file (no validation)")
         return True
     except Exception as e:
         _log(f"SESSION LOAD FAIL: {e}")
@@ -91,31 +95,30 @@ def get_client() -> "Client":
     """Повертає готовий (залогінений) клієнт. Thread-unsafe але для asyncio.to_thread ок."""
     global _client
     if not INSTAGRAPI_AVAILABLE:
-        raise RuntimeError("instagrapi не встановлений")
-    if not IG_USERNAME or not IG_PASSWORD:
-        raise RuntimeError("IG_USERNAME або IG_PASSWORD не задані в .env")
+        raise RuntimeError("instagrapi not installed")
+    if not SESSION_FILE or not pathlib.Path(SESSION_FILE).exists():
+        raise RuntimeError("ig_session.json not found — refresh locally and SCP to server")
 
     if _client is None:
         cl = _make_client()
         if not _load_session(cl):
-            _login_fresh(cl)
+            raise RuntimeError("failed to load ig_session.json")
         _client = cl
 
     return _client
 
 
 def _with_relogin(fn):
-    """Виконує fn(client), при LoginRequired — ре-логін і повтор."""
+    """Виконує fn(client). При LoginRequired — не ре-логінимось з DC IP,
+    кидаємо IGSessionExpiredError (сесію треба оновити вручну локально)."""
     global _client
     cl = get_client()
     try:
         return fn(cl)
     except (LoginRequired, ClientLoginRequired):
-        _log("SESSION EXPIRED: re-logging in")
         _client = None
-        cl = get_client()
-        _login_fresh(cl)
-        return fn(cl)
+        _log("SESSION EXPIRED: needs manual refresh via refresh_ig_session.py")
+        raise IGSessionExpiredError("Instagram session expired — run refresh_ig_session.py locally")
 
 
 # =================== Публічний API ===================
