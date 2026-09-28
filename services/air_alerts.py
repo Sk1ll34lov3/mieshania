@@ -2,6 +2,8 @@
 # services/air_alerts.py
 import asyncio
 import re
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
 import aiohttp
 
@@ -44,10 +46,29 @@ API_URL = "https://api.alerts.in.ua/v1/alerts/active.json"
 POLL_SEC = 30
 HTTP_TIMEOUT = aiohttp.ClientTimeout(total=15)
 
-AlertStates = Dict[str, str]
+@dataclass(frozen=True)
+class AlertState:
+    level: str
+    threats: Tuple[str, ...] = ()
+    started_at: Optional[datetime] = None
+
+
+AlertStates = Dict[str, AlertState]
 LEVEL_PRIORITY = {"yellow": 1, "red": 2}
 LEVEL_EMOJI = {"yellow": "🟡", "red": "🔴"}
 LEVEL_LABEL = {"yellow": "ЖОВТИЙ РІВЕНЬ", "red": "ЧЕРВОНИЙ РІВЕНЬ"}
+THREAT_LABELS = {
+    "tactic_aircraft_activity": "активність тактичної авіації",
+    "strategic_aircraft_activity": "активність стратегічної авіації",
+    "mig31k_departure": "зліт МіГ-31К",
+    "ballistic_missiles": "загроза балістичних ракет",
+    "cruise_missiles": "загроза крилатих ракет",
+    "unspecified_missiles": "ракетна загроза",
+    "drones": "дронова загроза",
+    "guided_aerial_bombs": "загроза КАБ",
+    "air_defense": "робота ППО",
+    "unknown": "невідома загроза",
+}
 
 # ----------------------- DB switches -----------------------
 def set_air_city(chat_id: int, on: bool):
@@ -76,40 +97,109 @@ def _normalize_level(value: object) -> str:
     return level
 
 
-def _put_highest_level(states: AlertStates, name: str, level: str) -> None:
-    current = states.get(name)
-    if current is None or LEVEL_PRIORITY[level] > LEVEL_PRIORITY[current]:
-        states[name] = level
-
-
-def _level_for_aliases(states: AlertStates, aliases: Set[str]) -> Optional[str]:
-    levels = [states[name] for name in aliases if name in states]
-    if not levels:
+def _parse_datetime(value: object) -> Optional[datetime]:
+    if not value:
         return None
-    return max(levels, key=LEVEL_PRIORITY.get)
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        log.warning("Invalid air alert timestamp %r", value)
+        return None
 
 
-def _status_line(title: str, level: Optional[str]) -> str:
-    if level is None:
+def _threats(alert: dict) -> Tuple[str, ...]:
+    result: List[str] = []
+    for threat in alert.get("threats") or []:
+        if not isinstance(threat, dict):
+            continue
+        source_message = str(threat.get("source_message") or "").strip()
+        threat_type = str(threat.get("threat_type") or "unknown").strip().lower()
+        label = source_message or THREAT_LABELS.get(threat_type, threat_type.replace("_", " "))
+        if label and label not in result:
+            result.append(label)
+    return tuple(result)
+
+
+def _merge_alerts(current: Optional[AlertState], candidate: AlertState) -> AlertState:
+    if current is None:
+        return candidate
+
+    started_at = current.started_at
+    if started_at is None or (candidate.started_at is not None and candidate.started_at < started_at):
+        started_at = candidate.started_at
+
+    threats = tuple(dict.fromkeys(current.threats + candidate.threats))
+    level = candidate.level if LEVEL_PRIORITY[candidate.level] > LEVEL_PRIORITY[current.level] else current.level
+    return AlertState(level=level, threats=threats, started_at=started_at)
+
+
+def _put_alert(states: AlertStates, name: str, alert: AlertState) -> None:
+    states[name] = _merge_alerts(states.get(name), alert)
+
+
+def _state_for_aliases(states: AlertStates, aliases: Set[str]) -> Optional[AlertState]:
+    matching = [states[name] for name in aliases if name in states]
+    if not matching:
+        return None
+    result = matching[0]
+    for state in matching[1:]:
+        result = _merge_alerts(result, state)
+    return result
+
+
+def _duration_text(started_at: Optional[datetime], now: Optional[datetime] = None) -> Optional[str]:
+    if started_at is None:
+        return None
+    now = now or datetime.now(timezone.utc)
+    seconds = max(0, int((now - started_at).total_seconds()))
+    minutes, _ = divmod(seconds, 60)
+    if minutes < 1:
+        return "менше хвилини"
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours} год {minutes} хв" if minutes else f"{hours} год"
+    return f"{minutes} хв"
+
+
+def _alert_details(state: AlertState) -> str:
+    parts = []
+    if state.threats:
+        parts.append("⚠️ Небезпека: " + "; ".join(state.threats))
+    duration = _duration_text(state.started_at)
+    if duration:
+        parts.append(f"⏱ Триває: {duration}")
+    return "\n".join(parts)
+
+
+def _status_line(title: str, state: Optional[AlertState]) -> str:
+    if state is None:
         return f"{title}: 🟢 ВІДБІЙ"
-    return f"{title}: {LEVEL_EMOJI[level]} {LEVEL_LABEL[level]}"
+    details = _alert_details(state)
+    return "\n".join(filter(None, [f"{title}: {LEVEL_EMOJI[state.level]} {LEVEL_LABEL[state.level]}", details]))
 
 
-def _change_message(title: str, previous: Optional[str], current: Optional[str]) -> str:
+def _change_message(title: str, previous: Optional[AlertState], current: Optional[AlertState]) -> str:
     if current is None:
         return f"🟢 Відбій у {title}."
 
-    level_text = f"{LEVEL_EMOJI[current]} {LEVEL_LABEL[current]}"
     if previous is None:
-        return f"{level_text} повітряної тривоги в {title}!"
-    if LEVEL_PRIORITY[current] > LEVEL_PRIORITY[previous]:
-        return f"🔴 ПІДВИЩЕННЯ РІВНЯ: у {title} {level_text.lower()}!"
-    return f"{level_text} повітряної тривоги в {title}."
+        prefix = "🔔 Нова повітряна тривога"
+    elif LEVEL_PRIORITY[current.level] > LEVEL_PRIORITY[previous.level]:
+        prefix = "🔴 ПІДВИЩЕННЯ РІВНЯ ТРИВОГИ"
+    else:
+        prefix = "⚠️ ОНОВЛЕННЯ ТРИВОГИ"
+
+    message = f"{prefix} у {title}: {LEVEL_EMOJI[current.level]} {LEVEL_LABEL[current.level]}!"
+    details = _alert_details(current)
+    return "\n".join(filter(None, [message, details]))
 
 
 async def _fetch_states(session: aiohttp.ClientSession) -> Tuple[AlertStates, AlertStates]:
     """
-    Повертає мапи нормалізованих назв на рівень: (cities, regions).
+    Повертає мапи нормалізованих назв на стан: (cities, regions).
     Обробляються лише події з alert_type == "air_raid".
     API передає рівень у полі alert_level: yellow або red.
     """
@@ -134,17 +224,21 @@ async def _fetch_states(session: aiohttp.ClientSession) -> Tuple[AlertStates, Al
             continue
 
         norm = _normalize(name)
-        level = _normalize_level(a.get("alert_level"))
+        alert = AlertState(
+            level=_normalize_level(a.get("alert_level")),
+            threats=_threats(a),
+            started_at=_parse_datetime(a.get("started_at")),
+        )
 
         if lt in CITY_LOCATION_TYPES:
-            _put_highest_level(cities, norm, level)
+            _put_alert(cities, norm, alert)
         elif lt in REGION_LOCATION_TYPES:
-            _put_highest_level(regions, norm, level)
+            _put_alert(regions, norm, alert)
 
         if norm in KYIV_CITY_ALIASES:
-            _put_highest_level(cities, norm, level)
+            _put_alert(cities, norm, alert)
         if norm in KYIV_REGION_ALIASES:
-            _put_highest_level(regions, norm, level)
+            _put_alert(regions, norm, alert)
 
     return cities, regions
 
@@ -158,12 +252,12 @@ async def air_status_text() -> str:
         async with aiohttp.ClientSession(headers=headers, timeout=HTTP_TIMEOUT) as s:
             cities, regions = await _fetch_states(s)
 
-        city_level = _level_for_aliases(cities, KYIV_CITY_ALIASES)
-        region_level = _level_for_aliases(regions, KYIV_REGION_ALIASES)
+        city_state = _state_for_aliases(cities, KYIV_CITY_ALIASES)
+        region_state = _state_for_aliases(regions, KYIV_REGION_ALIASES)
 
         parts = [
-            _status_line("Київ", city_level),
-            _status_line("Київська область", region_level),
+            _status_line("Київ", city_state),
+            _status_line("Київська область", region_state),
         ]
         return "\n".join(parts)
     except Exception as e:
@@ -177,10 +271,11 @@ async def air_alert_loop(bot):
 
     headers = {"Authorization": f"Bearer {ALERTS_TOKEN}"}
 
-    last_city: Optional[str] = None
-    last_region: Optional[str] = None
+    last_city: Optional[AlertState] = None
+    last_region: Optional[AlertState] = None
     city_initialized = False
     region_initialized = False
+    startup_announced = False
     backoff = POLL_SEC
 
     while True:
@@ -189,10 +284,23 @@ async def air_alert_loop(bot):
             async with aiohttp.ClientSession(headers=headers, timeout=HTTP_TIMEOUT) as session:
                 cities, regions = await _fetch_states(session)
 
-            now_city = _level_for_aliases(cities, KYIV_CITY_ALIASES)
-            now_region = _level_for_aliases(regions, KYIV_REGION_ALIASES)
+            now_city = _state_for_aliases(cities, KYIV_CITY_ALIASES)
+            now_region = _state_for_aliases(regions, KYIV_REGION_ALIASES)
 
             city_chats, region_chats = get_air_chats()
+
+            if not startup_announced:
+                startup_text = "✅ Я оновився і тепер розрізняю рівні тривог та типи небезпек.\n\n"
+                startup_text += "\n\n".join([
+                    _status_line("Київ", now_city),
+                    _status_line("Київська область", now_region),
+                ])
+                for cid in set(city_chats + region_chats):
+                    try:
+                        await bot.send_message(cid, startup_text)
+                    except Exception as e:
+                        log.warning(f"send startup alert update failed chat={cid}: {e}")
+                startup_announced = True
 
             if city_initialized and now_city != last_city:
                 text = _change_message("Києві", last_city, now_city)
