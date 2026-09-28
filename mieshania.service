@@ -1,0 +1,17 @@
+[Unit]
+Description=Mieshania Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/opt/mieshania
+EnvironmentFile=/var/opt/mieshania/.env
+ExecStart=/var/opt/mieshania/.venv/bin/python /var/opt/mieshania/bot.py
+User=root
+Restart=always
+RestartSec=3
+StandardOutput=append:/var/log/mieshania.log
+StandardError=append:/var/log/mieshania.log
+
+[Install]
+WantedBy=multi-user.target
