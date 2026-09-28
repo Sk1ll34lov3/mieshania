@@ -14,6 +14,7 @@ from services.air_alerts import (
     resolve_district,
     set_air_district,
 )
+from handlers.menu import district_keyboard
 
 router = Router()
 
@@ -64,7 +65,10 @@ async def air_status(m: Message):
 @router.message(Command("air_districts"))
 async def air_districts(m: Message):
     """Показує районні підписки користувача та поточний стан районів."""
-    await m.answer(await air_districts_text(m.chat.id, m.from_user.id))
+    await m.answer(
+        await air_districts_text(m.chat.id, m.from_user.id),
+        reply_markup=district_keyboard(m.chat.id, m.from_user.id),
+    )
 
 
 async def _set_district_subscription(m: Message, on: bool):
