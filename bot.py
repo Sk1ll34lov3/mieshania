@@ -14,6 +14,7 @@ from handlers.schedule import router as schedule_router, start_background_tasks
 from handlers.alerts import router as alerts_router
 from handlers.misc import router as misc_router
 from handlers.chat_ai import router as chat_ai_router
+from handlers.menu import router as menu_router
 
 from bot_commands import register_bot_commands, dump_commands_to_text  
 
@@ -34,6 +35,7 @@ async def main():
     dp.include_router(moderation_router)
     dp.include_router(schedule_router)
     dp.include_router(alerts_router)
+    dp.include_router(menu_router)
     dp.include_router(chat_ai_router)
     dp.include_router(misc_router)
 

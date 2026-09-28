@@ -13,6 +13,7 @@ from aiogram.types import (
 def default_commands() -> List[BotCommand]:
     return [
         BotCommand(command="help", description="МЄШАНЯ 2.0: список команд"),
+        BotCommand(command="menu", description="Відкрити меню з кнопками"),
         BotCommand(command="ping", description="Перевірка бота"),
         BotCommand(command="id", description="Показати chat_id"),
         BotCommand(command="get", description="Скачати відео (YT/TikTok/IG)"),

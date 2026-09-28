@@ -6,6 +6,7 @@ from aiogram.types import Message
 
 from downloader import download_url, is_supported
 from utils import remember_user, upsert_chat
+from handlers.menu import main_menu_keyboard
 
 router = Router()
 
@@ -37,6 +38,8 @@ async def help_cmd(m: Message):
         "<code>/air_on_kyiv</code> | <code>/air_off_kyiv</code>\n"
         "<code>/air_on_region</code> | <code>/air_off_region</code>\n"
         "<code>/air_status</code>\n"
+        "<code>/air_districts</code> — райони та мої підписки\n"
+        "<code>/air_district_on 75</code> | <code>/air_district_off 75</code>\n"
         "\n<b>Модерація:</b>\n"
         "<code>/warn @user [причина]</code>\n"
         "<code>/mute @user [хв]</code>\n"
@@ -46,7 +49,7 @@ async def help_cmd(m: Message):
         "\nПосилання з YouTube/TikTok/Instagram я теж ловлю автоматично.\n"
         "\nСилами і православними стараніями від @stgroupua та @radchenkoleh"
     )
-    await m.answer(txt)
+    await m.answer(txt, reply_markup=main_menu_keyboard())
 
 
 @router.message(Command("ping"))
