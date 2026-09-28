@@ -240,6 +240,15 @@ async def _fetch_states(session: aiohttp.ClientSession) -> Tuple[AlertStates, Al
         if norm in KYIV_REGION_ALIASES:
             _put_alert(regions, norm, alert)
 
+        # Районні та громадські тривоги мають власний location_title,
+        # але область-власник передається в location_oblast.
+        oblast = a.get("location_oblast")
+        oblast_norm = _normalize(oblast) if oblast else ""
+        if oblast_norm in KYIV_CITY_ALIASES:
+            _put_alert(cities, _normalize(KYIV_CITY), alert)
+        if oblast_norm in KYIV_REGION_ALIASES:
+            _put_alert(regions, _normalize(KYIV_REGION), alert)
+
     return cities, regions
 
 # ----------------------- Public helpers -----------------------
