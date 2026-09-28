@@ -803,7 +803,7 @@ async def download_url(chat_id: int, url: str, bot, mode: str = "auto", message_
         if t == "audio":
             audios.append(p)
         elif t == "photo":
-            # Фото до 10 МБ можемо як photo, але одиночні краще як документ (щоб не кропило)
+            # Фото до 10 МБ шлемо як photo, більші — документом (ліміт Telegram)
             if size <= 10 * 1024 * 1024:
                 photos_group.append(p)
             else:
@@ -855,8 +855,7 @@ async def download_url(chat_id: int, url: str, bot, mode: str = "auto", message_
             # аудіо шлемо нижче окремо (щоб не було дубляжу для multi-file)
             pass
         elif t == "photo":
-            # ВАЖЛИВО: одиночне фото шлемо як документ, щоб Telegram не обрізав
-            await bot.send_document(chat_id, f, caption=title, **send_kwargs)
+            await bot.send_photo(chat_id, f, caption=title, **send_kwargs)
         else:
             if size <= 49 * 1024 * 1024:
                 await bot.send_video(chat_id, f, caption=title, **send_kwargs)
