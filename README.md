@@ -42,6 +42,9 @@ Mieshania supports multiple command groups with role-based access (default, priv
 | `/air_on_region` | Enable alerts for Kyiv region |
 | `/air_off_region` | Disable alerts for Kyiv region |
 | `/air_status` | Get current air alert status |
+| `/air_districts` | Show Kyiv region districts and personal subscriptions |
+| `/air_district_on <UID/name>` | Enable personal alerts for a district |
+| `/air_district_off <UID/name>` | Disable personal alerts for a district |
 | `/set_title` | Assign a custom title to @user |
 | `/title` | Show current user title |
 

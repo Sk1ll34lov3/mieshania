@@ -41,3 +41,13 @@ CREATE TABLE IF NOT EXISTS joke_history (
 CREATE INDEX idx_chat_mode ON chats (mode);
 CREATE INDEX idx_joke_chat ON jokes (chat_id);
 CREATE INDEX idx_joke_hist_chat ON joke_history (chat_id);
+
+CREATE TABLE IF NOT EXISTS air_district_subscriptions (
+  chat_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  district_uid VARCHAR(32) NOT NULL,
+  district_name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (chat_id, user_id, district_uid),
+  KEY ix_air_district_user (user_id, district_uid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

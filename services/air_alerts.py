@@ -69,6 +69,16 @@ THREAT_LABELS = {
     "air_defense": "робота ППО",
     "unknown": "невідома загроза",
 }
+KYIV_DISTRICTS = (
+    ("73", "Білоцерківський район", "Білоцерківському районі"),
+    ("74", "Вишгородський район", "Вишгородському районі"),
+    ("75", "Бучанський район", "Бучанському районі"),
+    ("76", "Обухівський район", "Обухівському районі"),
+    ("77", "Фастівський район", "Фастівському районі"),
+    ("78", "Бориспільський район", "Бориспільському районі"),
+    ("79", "Броварський район", "Броварському районі"),
+)
+KYIV_DISTRICT_BY_UID = {uid: name for uid, name, _ in KYIV_DISTRICTS}
 
 # ----------------------- DB switches -----------------------
 def set_air_city(chat_id: int, on: bool):
@@ -86,6 +96,47 @@ def get_air_chats() -> Tuple[List[int], List[int]]:
         cur.execute("SELECT chat_id FROM chats WHERE air_region_on=1")
         region = [r["chat_id"] for r in cur.fetchall()]
     return city, region
+
+
+def set_air_district(chat_id: int, user_id: int, district_uid: str, district_name: str, on: bool):
+    with db() as conn, conn.cursor() as cur:
+        if on:
+            cur.execute(
+                """
+                INSERT INTO air_district_subscriptions (chat_id, user_id, district_uid, district_name)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE district_name=VALUES(district_name)
+                """,
+                (chat_id, user_id, district_uid, district_name),
+            )
+        else:
+            cur.execute(
+                "DELETE FROM air_district_subscriptions WHERE chat_id=%s AND user_id=%s AND district_uid=%s",
+                (chat_id, user_id, district_uid),
+            )
+
+
+def get_user_air_districts(chat_id: int, user_id: int) -> Set[str]:
+    with db() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT district_uid FROM air_district_subscriptions WHERE chat_id=%s AND user_id=%s",
+            (chat_id, user_id),
+        )
+        return {str(row["district_uid"]) for row in cur.fetchall()}
+
+
+def get_air_district_subscriptions() -> List[Tuple[int, int, str]]:
+    with db() as conn, conn.cursor() as cur:
+        cur.execute("SELECT chat_id, user_id, district_uid FROM air_district_subscriptions")
+        return [(int(row["chat_id"]), int(row["user_id"]), str(row["district_uid"])) for row in cur.fetchall()]
+
+
+def resolve_district(value: str) -> Optional[Tuple[str, str]]:
+    query = _normalize(value)
+    for uid, name, _ in KYIV_DISTRICTS:
+        if query in {uid, _normalize(name), _normalize(name.removesuffix(" район"))}:
+            return uid, name
+    return None
 
 # ----------------------- HTTP client -----------------------
 def _normalize_level(value: object) -> str:
@@ -197,9 +248,9 @@ def _change_message(title: str, previous: Optional[AlertState], current: Optiona
     return "\n".join(filter(None, [message, details]))
 
 
-async def _fetch_states(session: aiohttp.ClientSession) -> Tuple[AlertStates, AlertStates]:
+async def _fetch_states(session: aiohttp.ClientSession) -> Tuple[AlertStates, AlertStates, AlertStates]:
     """
-    Повертає мапи нормалізованих назв на стан: (cities, regions).
+    Повертає мапи нормалізованих назв на стан: (cities, regions, districts).
     Обробляються лише події з alert_type == "air_raid".
     API передає рівень у полі alert_level: yellow або red.
     """
@@ -217,6 +268,7 @@ async def _fetch_states(session: aiohttp.ClientSession) -> Tuple[AlertStates, Al
 
     cities: AlertStates = {}
     regions: AlertStates = {}
+    districts: AlertStates = {}
     for a in air:
         lt = (a.get("location_type") or "").lower()
         name = _title(a)
@@ -248,8 +300,11 @@ async def _fetch_states(session: aiohttp.ClientSession) -> Tuple[AlertStates, Al
             _put_alert(cities, _normalize(KYIV_CITY), alert)
         if oblast_norm in KYIV_REGION_ALIASES:
             _put_alert(regions, _normalize(KYIV_REGION), alert)
+            district_uid = str(a.get("location_uid") or "")
+            if lt == "raion" and district_uid in KYIV_DISTRICT_BY_UID:
+                _put_alert(districts, district_uid, alert)
 
-    return cities, regions
+    return cities, regions, districts
 
 # ----------------------- Public helpers -----------------------
 async def air_status_text() -> str:
@@ -259,7 +314,7 @@ async def air_status_text() -> str:
     headers = {"Authorization": f"Bearer {ALERTS_TOKEN}"}
     try:
         async with aiohttp.ClientSession(headers=headers, timeout=HTTP_TIMEOUT) as s:
-            cities, regions = await _fetch_states(s)
+            cities, regions, districts = await _fetch_states(s)
 
         city_state = _state_for_aliases(cities, KYIV_CITY_ALIASES)
         region_state = _state_for_aliases(regions, KYIV_REGION_ALIASES)
@@ -268,9 +323,39 @@ async def air_status_text() -> str:
             _status_line("Київ", city_state),
             _status_line("Київська область", region_state),
         ]
+        district_lines = [
+            _status_line(name, districts.get(uid))
+            for uid, name, _ in KYIV_DISTRICTS
+        ]
+        parts.append("Київська область по районах:\n" + "\n".join(district_lines))
         return "\n".join(parts)
     except Exception as e:
         return f"Помилка отримання статусу: {e}"
+
+
+async def air_districts_text(chat_id: int, user_id: int) -> str:
+    if not ALERTS_TOKEN:
+        return "⚠️ API ключ alerts.in.ua не задано."
+
+    try:
+        headers = {"Authorization": f"Bearer {ALERTS_TOKEN}"}
+        async with aiohttp.ClientSession(headers=headers, timeout=HTTP_TIMEOUT) as session:
+            _, _, districts = await _fetch_states(session)
+        subscribed = get_user_air_districts(chat_id, user_id)
+        lines = ["Ваші районні підписки Київської області:"]
+        for uid, name, _ in KYIV_DISTRICTS:
+            mark = "✅" if uid in subscribed else "⬜"
+            state = districts.get(uid)
+            if state is None:
+                status = "🟢 відбій"
+            else:
+                status = f"{LEVEL_EMOJI[state.level]} {LEVEL_LABEL[state.level].lower()}"
+            lines.append(f"{mark} <code>{uid}</code> {name} — {status}")
+        lines.append("\nУвімкнути: <code>/air_district_on 75</code>")
+        lines.append("Вимкнути: <code>/air_district_off 75</code>")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Помилка отримання районів: {e}"
 
 # ----------------------- Main loop -----------------------
 async def air_alert_loop(bot):
@@ -284,6 +369,8 @@ async def air_alert_loop(bot):
     last_region: Optional[AlertState] = None
     city_initialized = False
     region_initialized = False
+    district_initialized = False
+    last_districts: Dict[str, Optional[AlertState]] = {}
     startup_announced = False
     backoff = POLL_SEC
 
@@ -291,12 +378,13 @@ async def air_alert_loop(bot):
         sleep_for = POLL_SEC
         try:
             async with aiohttp.ClientSession(headers=headers, timeout=HTTP_TIMEOUT) as session:
-                cities, regions = await _fetch_states(session)
+                cities, regions, districts = await _fetch_states(session)
 
             now_city = _state_for_aliases(cities, KYIV_CITY_ALIASES)
             now_region = _state_for_aliases(regions, KYIV_REGION_ALIASES)
 
             city_chats, region_chats = get_air_chats()
+            district_subscriptions = get_air_district_subscriptions()
 
             if not startup_announced:
                 startup_text = "✅ Я оновився і тепер розрізняю рівні тривог та типи небезпек.\n\n"
@@ -304,7 +392,13 @@ async def air_alert_loop(bot):
                     _status_line("Київ", now_city),
                     _status_line("Київська область", now_region),
                 ])
-                for cid in set(city_chats + region_chats):
+                startup_text += "\n\nКиївська область по районах:\n" + "\n".join(
+                    _status_line(name, districts.get(uid))
+                    for uid, name, _ in KYIV_DISTRICTS
+                )
+                startup_recipients = set(city_chats + region_chats)
+                startup_recipients.update(user_id for _, user_id, _ in district_subscriptions)
+                for cid in startup_recipients:
                     try:
                         await bot.send_message(cid, startup_text)
                     except Exception as e:
@@ -327,10 +421,28 @@ async def air_alert_loop(bot):
                     except Exception as e:
                         log.warning(f"send region alert failed chat={cid}: {e}")
 
+            for district_uid, district_name, district_locative in KYIV_DISTRICTS:
+                current = districts.get(district_uid)
+                previous = last_districts.get(district_uid)
+                if district_initialized and current != previous:
+                    recipients = {
+                        user_id
+                        for _, user_id, subscribed_uid in district_subscriptions
+                        if subscribed_uid == district_uid
+                    }
+                    text = _change_message(district_locative, previous, current)
+                    for user_id in recipients:
+                        try:
+                            await bot.send_message(user_id, text)
+                        except Exception as e:
+                            log.warning(f"send district alert failed user={user_id} district={district_uid}: {e}")
+                last_districts[district_uid] = current
+
             last_city = now_city
             last_region = now_region
             city_initialized = True
             region_initialized = True
+            district_initialized = True
             backoff = POLL_SEC
 
         except Exception as e:
