@@ -87,3 +87,13 @@ def ensure_schema():
           PRIMARY KEY (chat_id, user_id),
           KEY ix_chat_username (chat_id, username)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;""")
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS air_district_subscriptions (
+          chat_id BIGINT NOT NULL,
+          user_id BIGINT NOT NULL,
+          district_uid VARCHAR(32) NOT NULL,
+          district_name VARCHAR(255) NOT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (chat_id, user_id, district_uid),
+          KEY ix_air_district_user (user_id, district_uid)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;""")

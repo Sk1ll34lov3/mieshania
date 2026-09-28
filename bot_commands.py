@@ -37,6 +37,9 @@ def default_commands() -> List[BotCommand]:
         BotCommand(command="air_on_region", description="Тривоги Область — ON"),
         BotCommand(command="air_off_region", description="Тривоги Область — OFF"),
         BotCommand(command="air_status", description="Поточний статус тривог"),
+        BotCommand(command="air_districts", description="Райони Київщини та мої підписки"),
+        BotCommand(command="air_district_on", description="Підписатися на район"),
+        BotCommand(command="air_district_off", description="Відписатися від району"),
     ]
 
 

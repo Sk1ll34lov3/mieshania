@@ -10,6 +10,9 @@ from services.air_alerts import (
     set_air_city,
     set_air_region,
     air_status_text,
+    air_districts_text,
+    resolve_district,
+    set_air_district,
 )
 
 router = Router()
@@ -56,3 +59,35 @@ async def air_status(m: Message):
     """Показує поточний стан тривоги."""
     txt = await air_status_text()
     await m.answer(txt)
+
+
+@router.message(Command("air_districts"))
+async def air_districts(m: Message):
+    """Показує районні підписки користувача та поточний стан районів."""
+    await m.answer(await air_districts_text(m.chat.id, m.from_user.id))
+
+
+async def _set_district_subscription(m: Message, on: bool):
+    parts = (m.text or "").split(maxsplit=1)
+    if len(parts) != 2:
+        command = "air_district_on" if on else "air_district_off"
+        return await m.answer(f"Використання: <code>/{command} 75</code> або назва району.")
+
+    district = resolve_district(parts[1])
+    if district is None:
+        return await m.answer("Не знайшов район. Виконай <code>/air_districts</code>, щоб побачити список і UID.")
+
+    district_uid, district_name = district
+    set_air_district(m.chat.id, m.from_user.id, district_uid, district_name, on)
+    action = "увімкнено" if on else "вимкнено"
+    await m.answer(f"✅ Особисті сповіщення для {district_name}: {action}.")
+
+
+@router.message(Command("air_district_on"))
+async def air_district_on(m: Message):
+    await _set_district_subscription(m, True)
+
+
+@router.message(Command("air_district_off"))
+async def air_district_off(m: Message):
+    await _set_district_subscription(m, False)
