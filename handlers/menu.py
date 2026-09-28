@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, InlineKeyboardButton, Message, ReplyKeyboardMarkup
+from aiogram.types import CallbackQuery, InlineKeyboardButton, KeyboardButton, Message, ReplyKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 from services.air_alerts import (
@@ -16,17 +16,24 @@ from services.air_alerts import (
 router = Router()
 
 
+def _row(builder: ReplyKeyboardBuilder, *labels: str) -> None:
+    builder.row(*(KeyboardButton(text=label) for label in labels))
+
+
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
-    builder.row(
+    _row(
+        builder,
         "🚨 Повітряні тривоги",
         "📥 Завантаження",
     )
-    builder.row(
+    _row(
+        builder,
         "🎮 Розваги",
         "📈 Статистика",
     )
-    builder.row(
+    _row(
+        builder,
         "⚙️ Налаштування",
         "📖 Допомога",
     )
@@ -35,38 +42,38 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
 
 def alerts_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
-    builder.row("📊 Статус тривог", "🗺 Райони Київщини")
-    builder.row("🔔 Мої підписки", "🏠 Головне меню")
+    _row(builder, "📊 Статус тривог", "🗺 Райони Київщини")
+    _row(builder, "🔔 Мої підписки", "🏠 Головне меню")
     return builder.as_markup(resize_keyboard=True)
 
 
 def downloads_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
-    builder.row("🎥 HD", "🎞 SD", "🎵 Аудіо")
-    builder.row("ℹ️ Інфо про файл", "🏠 Головне меню")
+    _row(builder, "🎥 HD", "🎞 SD", "🎵 Аудіо")
+    _row(builder, "ℹ️ Інфо про файл", "🏠 Головне меню")
     return builder.as_markup(resize_keyboard=True)
 
 
 def fun_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
-    builder.row("😂 Жарт", "🎰 Слот", "✊ Камінь/ножиці")
-    builder.row("🔥 Roast", "🏠 Головне меню")
+    _row(builder, "😂 Жарт", "🎰 Слот", "✊ Камінь/ножиці")
+    _row(builder, "🔥 Roast", "🏠 Головне меню")
     return builder.as_markup(resize_keyboard=True)
 
 
 def stats_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
-    builder.row("📊 Статистика", "🏆 Топ XP")
-    builder.row("👥 Топ активних", "🔗 Топ посилань")
-    builder.row("🏠 Головне меню")
+    _row(builder, "📊 Статистика", "🏆 Топ XP")
+    _row(builder, "👥 Топ активних", "🔗 Топ посилань")
+    _row(builder, "🏠 Головне меню")
     return builder.as_markup(resize_keyboard=True)
 
 
 def settings_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
-    builder.row("🤖 AI статус", "🎲 Рандом ON", "🎲 Рандом OFF")
-    builder.row("⏰ Ранковий будильник", "🌙 Тихі години")
-    builder.row("🏠 Головне меню")
+    _row(builder, "🤖 AI статус", "🎲 Рандом ON", "🎲 Рандом OFF")
+    _row(builder, "⏰ Ранковий будильник", "🌙 Тихі години")
+    _row(builder, "🏠 Головне меню")
     return builder.as_markup(resize_keyboard=True)
 
 
