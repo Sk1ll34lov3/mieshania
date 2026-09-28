@@ -17,25 +17,14 @@ import requests
 from aiogram.types import FSInputFile, InputMediaPhoto, InputMediaVideo
 
 try:
-    from instagram_client import (
-        download_story_by_url as _ig_story_download,
-        download_media_by_url as _ig_media_download,
-        IGSessionExpiredError,
-    )
-    INSTAGRAPI_AVAILABLE = True
-except Exception:
-    INSTAGRAPI_AVAILABLE = False
-    _ig_story_download = None
-    _ig_media_download = None
-    IGSessionExpiredError = RuntimeError  # fallback type
-
-try:
     from config import (
         COBALT_ENABLED,
         COBALT_API_URL,
         COBALT_TIMEOUT,
         COBALT_MAX_FILE_MB,
         COBALT_AUTH,
+        LSK_FORUM_CHAT_ID,
+        LSK_MEMES_THREAD_ID,
     )
 except Exception:
     COBALT_ENABLED = False
@@ -43,6 +32,8 @@ except Exception:
     COBALT_TIMEOUT = 25
     COBALT_MAX_FILE_MB = 49
     COBALT_AUTH = None
+    LSK_FORUM_CHAT_ID = -1001594062218
+    LSK_MEMES_THREAD_ID = None
 
 
 # -------------------- Константи середовища --------------------
@@ -99,6 +90,12 @@ def _sanitize_name(name: str, max_len: int = 80) -> str:
     if not name:
         name = "file"
     return name[:max_len]
+
+
+def _resolve_target_thread_id(chat_id: int, source_thread_id: Optional[int]) -> Optional[int]:
+    if chat_id == LSK_FORUM_CHAT_ID and LSK_MEMES_THREAD_ID:
+        return int(LSK_MEMES_THREAD_ID)
+    return source_thread_id
 
 
 def _try_cobalt(
@@ -419,17 +416,14 @@ def _try_instagram_scrape_fallback(url: str) -> Optional[str]:
 
 def _download_with_fallbacks_sync(url: str, mode: str = "auto") -> Tuple[List[Dict[str, str]], str]:
     """
-    cobalt.tools → instagrapi (IG) → yt-dlp → IG scrape fallback.
+    cobalt.tools → yt-dlp → (IG scrape fallback) strategy.
 
     mode: auto|hd|sd|audio|file
     """
     mode = (mode or "auto").lower()
 
-    _is_ig_story = "instagram.com/stories/" in (url or "").lower()
-    _is_ig = "instagram.com" in (url or "").lower()
-
-    # ----- COBALT (не для Stories — Cobalt їх не підтримує) -----
-    if COBALT_ENABLED and not _is_ig_story:
+    # ----- COBALT -----
+    if COBALT_ENABLED:
         _log(f"COBALT START: {url} mode={mode}")
         try:
             if mode == "audio":
@@ -471,41 +465,6 @@ def _download_with_fallbacks_sync(url: str, mode: str = "auto") -> Tuple[List[Di
 
         _log("COBALT FAIL")
 
-    # ----- INSTAGRAPI (для будь-якого Instagram URL) -----
-    if _is_ig and INSTAGRAPI_AVAILABLE:
-        _log(f"INSTAGRAPI START: {url}")
-        try:
-            import tempfile as _tmpfile
-            with _tmpfile.TemporaryDirectory() as td:
-                if _is_ig_story and _ig_story_download:
-                    items_raw = _ig_story_download(url, td)
-                    label = "story"
-                elif _ig_media_download:
-                    items_raw = _ig_media_download(url, td)
-                    label = "instagram"
-                else:
-                    items_raw = []
-                    label = "instagram"
-
-                if items_raw:
-                    os.makedirs(TMP_DIR, exist_ok=True)
-                    items = []
-                    for it in items_raw:
-                        src = it["path"]
-                        dst = os.path.join(TMP_DIR, os.path.basename(src))
-                        try:
-                            os.replace(src, dst)
-                        except Exception:
-                            import shutil as _shutil
-                            _shutil.copy2(src, dst)
-                        items.append({"path": dst, "type": it["type"]})
-                    _log(f"INSTAGRAPI SUCCESS: {len(items)} item(s)")
-                    return items, label
-        except IGSessionExpiredError:
-            raise  # пробрасуємо далі — хендлер нотифікує адмінів
-        except Exception as e:
-            _log(f"INSTAGRAPI FAIL: {e}")
-
     # ----- YT-DLP -----
     _log("FALLBACK YTDLP")
     profile = "auto"
@@ -520,7 +479,7 @@ def _download_with_fallbacks_sync(url: str, mode: str = "auto") -> Tuple[List[Di
         return _download_sync(url, profile=profile)
     except Exception as e:
         # ----- IG scrape fallback -----
-        if _is_ig:
+        if "instagram.com" in (url or "").lower():
             media = _try_instagram_scrape_fallback(url)
             if media:
                 _log("IG SCRAPE FALLBACK SUCCESS")
@@ -615,7 +574,8 @@ def _tt_cmds(url: str, outtmpl: str, cookies_file: Optional[str]) -> List[List[s
     base = [YTDLP_BIN, "--no-progress", "-o", outtmpl, url, "--merge-output-format", "mp4"] + _base_headers(url)
     if cookies_file:
         base += ["--cookies", cookies_file]
-    return [base]
+    # Друга спроба на випадок тимчасового TikTok anti-bot challenge, що інколи ламає парсинг сторінки
+    return [base, base[:]]
 
 
 def _ig_cmds(url: str, outtmpl: str, cookies_file: Optional[str]) -> List[List[str]]:
@@ -810,7 +770,7 @@ async def get_media_info(url: str) -> Dict[str, object]:
     return await asyncio.to_thread(_ytdlp_info_sync, url)
 
 
-async def download_url(chat_id: int, url: str, bot, mode: str = "auto") -> None:
+async def download_url(chat_id: int, url: str, bot, mode: str = "auto", message_thread_id: Optional[int] = None) -> None:
     """
     Завантажує контент і ВІДПРАВЛЯЄ В ЧАТ.
     Підтримує:
@@ -819,6 +779,7 @@ async def download_url(chat_id: int, url: str, bot, mode: str = "auto") -> None:
       - Instagram stories (одна сторі за URL)
     """
     items, title = await asyncio.to_thread(_download_with_fallbacks_sync, url, mode)
+    message_thread_id = _resolve_target_thread_id(chat_id, message_thread_id)
     force_document = (mode or "").lower() == "file"
 
     # Розкладаємо по групах з урахуванням лімітів Telegram
@@ -855,6 +816,7 @@ async def download_url(chat_id: int, url: str, bot, mode: str = "auto") -> None:
                 docs.append(p)
 
     album_paths = photos_group + videos_group
+    send_kwargs = {"message_thread_id": message_thread_id} if message_thread_id else {}
 
     # Якщо багато елементів — шлемо як альбом (media_group)
     if len(album_paths) > 1:
@@ -865,15 +827,15 @@ async def download_url(chat_id: int, url: str, bot, mode: str = "auto") -> None:
                 media.append(InputMediaPhoto(media=inp, caption=title if idx == 0 else None))
             else:
                 media.append(InputMediaVideo(media=inp, caption=title if idx == 0 else None))
-        await bot.send_media_group(chat_id, media)
+        await bot.send_media_group(chat_id, media, **send_kwargs)
 
         # Якщо ще залишились (більше 10) — шлемо як документи
         for p in album_paths[10:]:
-            await bot.send_document(chat_id, FSInputFile(p), caption=title)
+            await bot.send_document(chat_id, FSInputFile(p), caption=title, **send_kwargs)
 
         # Великі файли тільки документами
         for p in docs:
-            await bot.send_document(chat_id, FSInputFile(p), caption=title)
+            await bot.send_document(chat_id, FSInputFile(p), caption=title, **send_kwargs)
 
     else:
         # Один файл → особливий кейс для фото (щоб не кропило)
@@ -888,17 +850,18 @@ async def download_url(chat_id: int, url: str, bot, mode: str = "auto") -> None:
         f = FSInputFile(p)
 
         if force_document:
-            await bot.send_document(chat_id, f, caption=title)
+            await bot.send_document(chat_id, f, caption=title, **send_kwargs)
         elif t == "audio":
             # аудіо шлемо нижче окремо (щоб не було дубляжу для multi-file)
             pass
         elif t == "photo":
-            await bot.send_photo(chat_id, f, caption=title)
+            # ВАЖЛИВО: одиночне фото шлемо як документ, щоб Telegram не обрізав
+            await bot.send_document(chat_id, f, caption=title, **send_kwargs)
         else:
             if size <= 49 * 1024 * 1024:
-                await bot.send_video(chat_id, f, caption=title)
+                await bot.send_video(chat_id, f, caption=title, **send_kwargs)
             else:
-                await bot.send_document(chat_id, f, caption=title)
+                await bot.send_document(chat_id, f, caption=title, **send_kwargs)
 
     # Аудіо — окремо (не входить у media_group)
     for p in audios:
@@ -908,9 +871,9 @@ async def download_url(chat_id: int, url: str, bot, mode: str = "auto") -> None:
             size = 0
         f = FSInputFile(p)
         if size <= 49 * 1024 * 1024 and not force_document:
-            await bot.send_audio(chat_id, f, caption=title)
+            await bot.send_audio(chat_id, f, caption=title, **send_kwargs)
         else:
-            await bot.send_document(chat_id, f, caption=title)
+            await bot.send_document(chat_id, f, caption=title, **send_kwargs)
 
     # Прибираємо тимчасові файли
     for it in items:

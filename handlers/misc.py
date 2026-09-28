@@ -1,6 +1,7 @@
 import re
 from aiogram import Router, F
 from aiogram.types import Message, ChatMemberUpdated
+from config import log, LSK_FORUM_CHAT_ID
 from utils import remember_user
 
 router = Router()
@@ -31,6 +32,13 @@ async def mute_guard_and_autodl(m: Message):
         if getattr(m, "reply_to_message", None) and m.reply_to_message.from_user:
             u = m.reply_to_message.from_user
             remember_user(m.chat.id, u.id, u.username)
+        if m.chat.id == LSK_FORUM_CHAT_ID and getattr(m, "message_thread_id", None):
+            log.info(
+                "forum thread hit: chat=%s thread_id=%s text=%r",
+                m.chat.id,
+                m.message_thread_id,
+                (m.text or m.caption or "")[:120],
+            )
     except Exception:
         pass
     try:
@@ -68,21 +76,11 @@ async def mute_guard_and_autodl(m: Message):
             continue
         await m.answer("Секунду, тягну відео…")
         try:
-            await download_url(m.chat.id, url, m.bot)
-        except Exception as exc:
-            from instagram_client import IGSessionExpiredError
-            if isinstance(exc, IGSessionExpiredError):
-                await m.answer("❌ Не можу скачати з Instagram — сесія протухла. Чекай, адмін вже в курсі 🔧")
-                from config import ADMINS
-                for admin_id in ADMINS:
-                    try:
-                        await m.bot.send_message(
-                            admin_id,
-                            "⚠️ <b>Instagram сесія Мєшані протухла!</b>\n"
-                            "Запусти <code>python refresh_ig_session.py</code> локально і задеплой.",
-                            parse_mode="HTML",
-                        )
-                    except Exception:
-                        pass
-            else:
-                await m.answer("Не вийшло витягнути відео. Спробуй інше посилання.")
+            await download_url(
+                m.chat.id,
+                url,
+                m.bot,
+                message_thread_id=getattr(m, "message_thread_id", None),
+            )
+        except Exception:
+            await m.answer("Не вийшло витягнути відео. Спробуй інше посилання.")
