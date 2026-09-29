@@ -15,6 +15,15 @@ from handlers.alerts import router as alerts_router
 from handlers.misc import router as misc_router
 from handlers.chat_ai import router as chat_ai_router
 from handlers.menu import router as menu_router
+from handlers.media import router as media_router
+from handlers.saved import router as saved_router
+from handlers.settings import router as settings_router
+from handlers.stats import router as stats_router
+from handlers.xp import router as xp_router
+from handlers.reports import router as reports_router
+from handlers.watch import router as watch_router
+from handlers.autoreply import router as autoreply_router
+from handlers.moderation2 import router as moderation2_router
 
 from bot_commands import register_bot_commands, dump_commands_to_text  
 
@@ -31,11 +40,20 @@ async def main():
     dp = Dispatcher()
 
     dp.include_router(basic_router)
+    dp.include_router(menu_router)
+    dp.include_router(media_router)
     dp.include_router(fun_router)
     dp.include_router(moderation_router)
+    dp.include_router(moderation2_router)
     dp.include_router(schedule_router)
     dp.include_router(alerts_router)
-    dp.include_router(menu_router)
+    dp.include_router(settings_router)
+    dp.include_router(stats_router)
+    dp.include_router(xp_router)
+    dp.include_router(saved_router)
+    dp.include_router(reports_router)
+    dp.include_router(watch_router)
+    dp.include_router(autoreply_router)
     dp.include_router(chat_ai_router)
     dp.include_router(misc_router)
 

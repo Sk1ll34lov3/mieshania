@@ -4,6 +4,11 @@ from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, KeyboardButton, Message, ReplyKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
+from handlers.chat_ai import chat_ai_status_cmd
+from handlers.fun import joke_cmd, rps_cmd, slot_cmd
+from handlers.schedule import rnd_off, rnd_on
+from handlers.stats import stats_7d, top_cmd, top_links_cmd
+from handlers.xp import top_xp_cmd
 from services.air_alerts import (
     KYIV_DISTRICTS,
     air_districts_text,
@@ -154,22 +159,22 @@ async def fun_menu(message: Message):
 
 @router.message(F.text == "😂 Жарт")
 async def joke_button(message: Message):
-    await message.answer("Використай команду <code>/joke</code>.", reply_markup=fun_menu_keyboard())
+    await joke_cmd(message)
 
 
 @router.message(F.text == "🎰 Слот")
 async def slot_button(message: Message):
-    await message.answer("Використай команду <code>/slot</code>.", reply_markup=fun_menu_keyboard())
+    await slot_cmd(message)
 
 
 @router.message(F.text == "✊ Камінь/ножиці")
 async def rps_button(message: Message):
-    await message.answer("Використай команду <code>/rps</code>.", reply_markup=fun_menu_keyboard())
+    await rps_cmd(message)
 
 
 @router.message(F.text == "🔥 Roast")
 async def roast_button(message: Message):
-    await message.answer("Використай команду <code>/roast @user</code>.", reply_markup=fun_menu_keyboard())
+    await message.answer("Для roast зроби reply на користувача або використай <code>/roast @user</code>.", reply_markup=fun_menu_keyboard())
 
 
 @router.message(F.text == "📈 Статистика")
@@ -179,17 +184,22 @@ async def stats_menu(message: Message):
 
 @router.message(F.text == "🏆 Топ XP")
 async def top_xp_button(message: Message):
-    await message.answer("Використай команду <code>/top_xp</code>.", reply_markup=stats_menu_keyboard())
+    await top_xp_cmd(message)
 
 
 @router.message(F.text == "👥 Топ активних")
 async def top_active_button(message: Message):
-    await message.answer("Використай команду <code>/top</code>.", reply_markup=stats_menu_keyboard())
+    await top_cmd(message)
 
 
 @router.message(F.text == "🔗 Топ посилань")
 async def top_links_button(message: Message):
-    await message.answer("Використай команду <code>/top_links</code>.", reply_markup=stats_menu_keyboard())
+    await top_links_cmd(message)
+
+
+@router.message(F.text == "📊 Статистика")
+async def stats_button(message: Message):
+    await stats_7d(message)
 
 
 @router.message(F.text == "⚙️ Налаштування")
@@ -199,17 +209,17 @@ async def settings_menu(message: Message):
 
 @router.message(F.text == "🤖 AI статус")
 async def ai_status_button(message: Message):
-    await message.answer("Використай команду <code>/chat_ai_status</code>.", reply_markup=settings_menu_keyboard())
+    await chat_ai_status_cmd(message)
 
 
 @router.message(F.text == "🎲 Рандом ON")
 async def random_on_button(message: Message):
-    await message.answer("Використай команду <code>/random_on</code>.", reply_markup=settings_menu_keyboard())
+    await rnd_on(message)
 
 
 @router.message(F.text == "🎲 Рандом OFF")
 async def random_off_button(message: Message):
-    await message.answer("Використай команду <code>/random_off</code>.", reply_markup=settings_menu_keyboard())
+    await rnd_off(message)
 
 
 @router.message(F.text == "⏰ Ранковий будильник")
