@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, InlineKeyboardButton, KeyboardButton, Message, ReplyKeyboardMarkup
-from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from handlers.chat_ai import chat_ai_status_cmd
 from handlers.fun import joke_cmd, rps_cmd, slot_cmd
@@ -21,65 +21,58 @@ from services.air_alerts import (
 router = Router()
 
 
-def _row(builder: ReplyKeyboardBuilder, *labels: str) -> None:
-    builder.row(*(KeyboardButton(text=label) for label in labels))
-
-
-def main_menu_keyboard() -> ReplyKeyboardMarkup:
-    builder = ReplyKeyboardBuilder()
-    _row(
-        builder,
-        "🚨 Повітряні тривоги",
-        "📥 Завантаження",
+def _menu_markup(rows: list[list[tuple[str, str]]]) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=text, callback_data=data) for text, data in row]
+            for row in rows
+        ]
     )
-    _row(
-        builder,
-        "🎮 Розваги",
-        "📈 Статистика",
-    )
-    _row(
-        builder,
-        "⚙️ Налаштування",
-        "📖 Допомога",
-    )
-    return builder.as_markup(resize_keyboard=True)
 
 
-def alerts_menu_keyboard() -> ReplyKeyboardMarkup:
-    builder = ReplyKeyboardBuilder()
-    _row(builder, "📊 Статус тривог", "🗺 Райони Київщини")
-    _row(builder, "🔔 Мої підписки", "🏠 Головне меню")
-    return builder.as_markup(resize_keyboard=True)
+def main_menu_keyboard() -> InlineKeyboardMarkup:
+    return _menu_markup([
+        [("🚨 Повітряні тривоги", "menu:alerts"), ("📥 Завантаження", "menu:downloads")],
+        [("🎮 Розваги", "menu:fun"), ("📈 Статистика", "menu:stats")],
+        [("⚙️ Налаштування", "menu:settings"), ("📖 Допомога", "menu:help")],
+    ])
 
 
-def downloads_menu_keyboard() -> ReplyKeyboardMarkup:
-    builder = ReplyKeyboardBuilder()
-    _row(builder, "🎥 HD", "🎞 SD", "🎵 Аудіо")
-    _row(builder, "ℹ️ Інфо про файл", "🏠 Головне меню")
-    return builder.as_markup(resize_keyboard=True)
+def alerts_menu_keyboard() -> InlineKeyboardMarkup:
+    return _menu_markup([
+        [("📊 Статус тривог", "air:status"), ("🗺 Райони Київщини", "air:districts")],
+        [("🔔 Мої підписки", "air:districts"), ("🏠 Головне меню", "menu:main")],
+    ])
 
 
-def fun_menu_keyboard() -> ReplyKeyboardMarkup:
-    builder = ReplyKeyboardBuilder()
-    _row(builder, "😂 Жарт", "🎰 Слот", "✊ Камінь/ножиці")
-    _row(builder, "🔥 Roast", "🏠 Головне меню")
-    return builder.as_markup(resize_keyboard=True)
+def downloads_menu_keyboard() -> InlineKeyboardMarkup:
+    return _menu_markup([
+        [("🎥 HD", "download:hd"), ("🎞 SD", "download:sd"), ("🎵 Аудіо", "download:audio")],
+        [("ℹ️ Інфо про файл", "download:info"), ("🏠 Головне меню", "menu:main")],
+    ])
 
 
-def stats_menu_keyboard() -> ReplyKeyboardMarkup:
-    builder = ReplyKeyboardBuilder()
-    _row(builder, "📊 Статистика", "🏆 Топ XP")
-    _row(builder, "👥 Топ активних", "🔗 Топ посилань")
-    _row(builder, "🏠 Головне меню")
-    return builder.as_markup(resize_keyboard=True)
+def fun_menu_keyboard() -> InlineKeyboardMarkup:
+    return _menu_markup([
+        [("😂 Жарт", "fun:joke"), ("🎰 Слот", "fun:slot"), ("✊ Камінь/ножиці", "fun:rps")],
+        [("🔥 Roast", "fun:roast"), ("🏠 Головне меню", "menu:main")],
+    ])
 
 
-def settings_menu_keyboard() -> ReplyKeyboardMarkup:
-    builder = ReplyKeyboardBuilder()
-    _row(builder, "🤖 AI статус", "🎲 Рандом ON", "🎲 Рандом OFF")
-    _row(builder, "⏰ Ранковий будильник", "🌙 Тихі години")
-    _row(builder, "🏠 Головне меню")
-    return builder.as_markup(resize_keyboard=True)
+def stats_menu_keyboard() -> InlineKeyboardMarkup:
+    return _menu_markup([
+        [("📊 Статистика", "stats:summary"), ("🏆 Топ XP", "stats:xp")],
+        [("👥 Топ активних", "stats:active"), ("🔗 Топ посилань", "stats:links")],
+        [("🏠 Головне меню", "menu:main")],
+    ])
+
+
+def settings_menu_keyboard() -> InlineKeyboardMarkup:
+    return _menu_markup([
+        [("🤖 AI статус", "settings:ai"), ("🎲 Рандом ON", "settings:random_on"), ("🎲 Рандом OFF", "settings:random_off")],
+        [("⏰ Ранковий будильник", "settings:morning"), ("🌙 Тихі години", "settings:quiet")],
+        [("🏠 Головне меню", "menu:main")],
+    ])
 
 
 def district_keyboard(chat_id: int, user_id: int):
@@ -245,6 +238,175 @@ async def home_button(message: Message):
     await message.answer("Головне меню:", reply_markup=main_menu_keyboard())
 
 
+async def _edit_menu(callback: CallbackQuery, text: str, markup: InlineKeyboardMarkup) -> None:
+    await callback.answer()
+    if callback.message:
+        await callback.message.edit_text(text, reply_markup=markup)
+
+
+@router.callback_query(F.data == "menu:alerts")
+async def alerts_menu_callback(callback: CallbackQuery):
+    await _edit_menu(callback, "Меню повітряних тривог:", alerts_menu_keyboard())
+
+
+@router.callback_query(F.data == "menu:downloads")
+async def downloads_menu_callback(callback: CallbackQuery):
+    await _edit_menu(
+        callback,
+        "Надішли посилання на відео — я покажу кнопки завантаження.\n"
+        "Або обери режим нижче й введи команду з URL:",
+        downloads_menu_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "menu:fun")
+async def fun_menu_callback(callback: CallbackQuery):
+    await _edit_menu(callback, "Розваги:", fun_menu_keyboard())
+
+
+@router.callback_query(F.data == "menu:stats")
+async def stats_menu_callback(callback: CallbackQuery):
+    await _edit_menu(callback, "Статистика:", stats_menu_keyboard())
+
+
+@router.callback_query(F.data == "menu:settings")
+async def settings_menu_callback(callback: CallbackQuery):
+    await _edit_menu(callback, "Налаштування:", settings_menu_keyboard())
+
+
+@router.callback_query(F.data == "menu:help")
+async def help_menu_callback(callback: CallbackQuery):
+    await _edit_menu(
+        callback,
+        "Натисни потрібний розділ меню або введи /help для повного списку команд.",
+        main_menu_keyboard(),
+    )
+
+
+@router.callback_query(F.data.startswith("download:"))
+async def download_menu_callback(callback: CallbackQuery):
+    mode = (callback.data or "").split(":", 1)[1]
+    commands = {"hd": "/dl_hd", "sd": "/dl_sd", "audio": "/dl_audio", "info": "/dl_info"}
+    command = commands.get(mode, "/get")
+    await _edit_menu(
+        callback,
+        f"Надішли посилання командою <code>{command} URL</code> або просто надішли URL у чат.",
+        downloads_menu_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "fun:joke")
+async def joke_menu_callback(callback: CallbackQuery):
+    await callback.answer()
+    if callback.message:
+        await joke_cmd(callback.message)
+
+
+@router.callback_query(F.data == "fun:slot")
+async def slot_menu_callback(callback: CallbackQuery):
+    await callback.answer()
+    if callback.message:
+        await slot_cmd(callback.message)
+
+
+@router.callback_query(F.data == "fun:rps")
+async def rps_menu_callback(callback: CallbackQuery):
+    await callback.answer()
+    if callback.message:
+        await rps_cmd(callback.message)
+
+
+@router.callback_query(F.data == "fun:roast")
+async def roast_menu_callback(callback: CallbackQuery):
+    await _edit_menu(
+        callback,
+        "Для roast зроби reply на користувача або використай <code>/roast @user</code>.",
+        fun_menu_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "stats:summary")
+async def stats_summary_callback(callback: CallbackQuery):
+    await callback.answer()
+    if callback.message:
+        await stats_7d(callback.message)
+
+
+@router.callback_query(F.data == "stats:xp")
+async def stats_xp_callback(callback: CallbackQuery):
+    await callback.answer()
+    if callback.message:
+        await top_xp_cmd(callback.message)
+
+
+@router.callback_query(F.data == "stats:active")
+async def stats_active_callback(callback: CallbackQuery):
+    await callback.answer()
+    if callback.message:
+        await top_cmd(callback.message)
+
+
+@router.callback_query(F.data == "stats:links")
+async def stats_links_callback(callback: CallbackQuery):
+    await callback.answer()
+    if callback.message:
+        await top_links_cmd(callback.message)
+
+
+@router.callback_query(F.data == "settings:ai")
+async def ai_status_menu_callback(callback: CallbackQuery):
+    await callback.answer()
+    if callback.message:
+        await chat_ai_status_cmd(callback.message)
+
+
+@router.callback_query(F.data == "settings:random_on")
+async def random_on_menu_callback(callback: CallbackQuery):
+    await callback.answer()
+    if callback.message:
+        await rnd_on(callback.message)
+
+
+@router.callback_query(F.data == "settings:random_off")
+async def random_off_menu_callback(callback: CallbackQuery):
+    await callback.answer()
+    if callback.message:
+        await rnd_off(callback.message)
+
+
+@router.callback_query(F.data == "settings:morning")
+async def morning_menu_callback(callback: CallbackQuery):
+    await _edit_menu(
+        callback,
+        "Використай <code>/morning_on</code>, <code>/morning_off</code> або <code>/morning_time 09:00</code>.",
+        settings_menu_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "settings:quiet")
+async def quiet_menu_callback(callback: CallbackQuery):
+    await _edit_menu(
+        callback,
+        "Використай <code>/quiet 23:00-08:00</code> або <code>/quiet off</code>.",
+        settings_menu_keyboard(),
+    )
+
+
+@router.callback_query(F.data == "air:status")
+async def air_status_callback(callback: CallbackQuery):
+    await _edit_menu(callback, await air_status_text(), alerts_menu_keyboard())
+
+
+@router.callback_query(F.data == "air:districts")
+async def air_districts_callback(callback: CallbackQuery):
+    await callback.answer()
+    if callback.message:
+        await callback.message.edit_text(
+            await air_districts_text(callback.message.chat.id, callback.from_user.id),
+            reply_markup=district_keyboard(callback.message.chat.id, callback.from_user.id),
+        )
+
+
 @router.callback_query(F.data.startswith("air:"))
 async def district_callback(callback: CallbackQuery):
     data = callback.data or ""
@@ -278,4 +440,5 @@ async def district_callback(callback: CallbackQuery):
 @router.callback_query(F.data == "menu:main")
 async def menu_callback(callback: CallbackQuery):
     await callback.answer()
-    await callback.message.answer("Головне меню:", reply_markup=main_menu_keyboard())
+    if callback.message:
+        await callback.message.edit_text("Головне меню:", reply_markup=main_menu_keyboard())
