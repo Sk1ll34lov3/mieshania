@@ -5,6 +5,7 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("mieshania")
+moderation_log = logging.getLogger("mieshania.moderation")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN") or ""
 if not BOT_TOKEN:
