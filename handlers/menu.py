@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyKeyboardRemove
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from handlers.chat_ai import chat_ai_status_cmd
@@ -98,6 +98,7 @@ async def send_districts(message: Message):
 
 @router.message(Command("menu"))
 async def menu_command(message: Message):
+    await message.answer("✅ Старе меню прибрано.", reply_markup=ReplyKeyboardRemove())
     await message.answer("Головне меню:", reply_markup=main_menu_keyboard())
 
 
