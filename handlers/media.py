@@ -11,7 +11,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.dispatcher.event.bases import SkipHandler
 
 from downloader import download_url, get_media_info, is_supported
-from services.media import media_action_keyboard, pick_first_supported_url
+from services.media import pick_first_supported_url
 from services.limits import is_download_allowed, record_download
 from services.settings import get_chat_settings
 from services.xp import add_download
@@ -220,7 +220,7 @@ async def link_buttons_on_message(m: Message):
     url = pick_first_supported_url(m)
     if not url:
         raise SkipHandler
-    # Авто-стратегія як раніше (пост лінка = завантаження), + кнопки для варіантів
+    # Авто-стратегія: пост лінка = одне автоматичне завантаження.
     if m.from_user:
         if not await _check_download_limit(m, action="auto"):
             return
@@ -232,7 +232,6 @@ async def link_buttons_on_message(m: Message):
                 add_download(m.chat.id, m.from_user.id, m.from_user.username)
         except Exception:
             pass
-        await m.reply("Обери інший варіант:", reply_markup=media_action_keyboard())
     except Exception as e:
         await m.reply(f"Не вийшло витягнути відео. <code>{html.escape(str(e))[:1500]}</code>")
     raise SkipHandler

@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 
-from config import BOT_TOKEN, log, ADMINS            
+from config import BOT_TOKEN, log
 from db import ensure_schema
 from handlers.basic import router as basic_router
 from handlers.fun import router as fun_router
@@ -26,13 +26,6 @@ from handlers.autoreply import router as autoreply_router
 from handlers.moderation2 import router as moderation2_router
 
 from bot_commands import register_bot_commands, dump_commands_to_text  
-
-async def notify_admins_startup(bot: Bot, text: str):  
-    for uid in ADMINS:
-        try:
-            await bot.send_message(uid, f"🤖 Бот перезапущено.\n\n{text}")
-        except Exception:
-            pass
 
 async def main():
     ensure_schema()
@@ -63,10 +56,9 @@ async def main():
     await register_bot_commands(bot)
 
    
-# 2) in the log and (optionally) admins
+    # 2) in the log
     commands_text = await dump_commands_to_text(bot)
     log.info("Registered bot commands:\n" + commands_text)
-    await notify_admins_startup(bot, commands_text)
 
     log.info(f"Started as @{me.username} (id={me.id})")
 
