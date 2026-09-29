@@ -371,7 +371,6 @@ async def air_alert_loop(bot):
     region_initialized = False
     district_initialized = False
     last_districts: Dict[str, Optional[AlertState]] = {}
-    startup_announced = False
     backoff = POLL_SEC
 
     while True:
@@ -385,25 +384,6 @@ async def air_alert_loop(bot):
 
             city_chats, region_chats = get_air_chats()
             district_subscriptions = get_air_district_subscriptions()
-
-            if not startup_announced:
-                startup_text = "✅ Я оновився і тепер розрізняю рівні тривог та типи небезпек.\n\n"
-                startup_text += "\n\n".join([
-                    _status_line("Київ", now_city),
-                    _status_line("Київська область", now_region),
-                ])
-                startup_text += "\n\nКиївська область по районах:\n" + "\n".join(
-                    _status_line(name, districts.get(uid))
-                    for uid, name, _ in KYIV_DISTRICTS
-                )
-                startup_recipients = set(city_chats + region_chats)
-                startup_recipients.update(user_id for _, user_id, _ in district_subscriptions)
-                for cid in startup_recipients:
-                    try:
-                        await bot.send_message(cid, startup_text)
-                    except Exception as e:
-                        log.warning(f"send startup alert update failed chat={cid}: {e}")
-                startup_announced = True
 
             if city_initialized and now_city != last_city:
                 text = _change_message("Києві", last_city, now_city)
