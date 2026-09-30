@@ -68,10 +68,13 @@ def _parse_json(content: str) -> list[dict] | None:
     if not isinstance(data, list) or len(data) != len(SIGNS):
         return None
     result = []
-    for item in data:
+    for index, item in enumerate(data):
         if not isinstance(item, dict) or not _clean_text(item.get("text")):
             return None
-        result.append({"text": _clean_text(item["text"])})
+        text = _clean_text(item["text"])
+        sign_name = SIGNS[index][1]
+        text = re.sub(rf"^{re.escape(sign_name)}(?:\s*[,.;]\s*|\s+)", "", text, flags=re.I)
+        result.append({"text": _clean_text(text)})
     if any(not item["text"] for item in result):
         return None
     return result
@@ -158,6 +161,7 @@ async def _generate(issue_date: date, history: list[dict]) -> list[dict] | None:
 Суржик, чорний абсурдний побутовий гумор, нахабна подача, мат доречний.
 Пиши природною українською, як живий автор жартів для дружнього чату.
 Кожен прогноз від однієї до двох зв'язних фраз і з конкретним несподіваним жартом.
+У кількох прогнозах можна вжити мат для підсилення жарту, але не роби лайку самоціллю.
 Фрази мають бути граматичними та зрозумілими. Не поєднуй випадкові слова,
 не вигадуй незрозумілі образи та не заповнюй текст загальними порадами.
 Не повторюй формулювання або саму ідею з історії попередніх прогнозів.
@@ -170,6 +174,7 @@ async def _generate(issue_date: date, history: list[dict]) -> list[dict] | None:
 Можна жартувати про побутові провали, гроші, роботу, стосунки, втому, незручність
 і вигадані космічні прокляття.
 
+Не додавай назву знака на початку тексту, бот поставить її сам.
 Поверни тільки JSON об'єкт такого виду
 {{"lines":[{{"text":"текст для Овна"}},{{"text":"текст для Тільця"}}]}}
 Масив має містити рівно 13 об'єктів і відповідати цьому порядку
