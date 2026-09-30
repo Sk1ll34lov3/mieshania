@@ -30,49 +30,28 @@ def _menu_markup(rows: list[list[tuple[str, str]]]) -> InlineKeyboardMarkup:
     )
 
 
-def main_menu_keyboard() -> InlineKeyboardMarkup:
-    return _menu_markup([
-        [("🚨 Повітряні тривоги", "menu:alerts"), ("📥 Завантаження", "menu:downloads")],
-        [("🎮 Розваги", "menu:fun"), ("📈 Статистика", "menu:stats")],
-        [("⚙️ Налаштування", "menu:settings"), ("📖 Допомога", "menu:help")],
-    ])
+def main_menu_keyboard() -> None:
+    return None
 
 
-def alerts_menu_keyboard() -> InlineKeyboardMarkup:
-    return _menu_markup([
-        [("📊 Статус тривог", "air:status"), ("🗺 Райони Київщини", "air:districts")],
-        [("🔔 Мої підписки", "air:districts"), ("🏠 Головне меню", "menu:main")],
-    ])
+def alerts_menu_keyboard() -> None:
+    return None
 
 
-def downloads_menu_keyboard() -> InlineKeyboardMarkup:
-    return _menu_markup([
-        [("🎥 HD", "download:hd"), ("🎞 SD", "download:sd"), ("🎵 Аудіо", "download:audio")],
-        [("ℹ️ Інфо про файл", "download:info"), ("🏠 Головне меню", "menu:main")],
-    ])
+def downloads_menu_keyboard() -> None:
+    return None
 
 
-def fun_menu_keyboard() -> InlineKeyboardMarkup:
-    return _menu_markup([
-        [("😂 Жарт", "fun:joke"), ("🎰 Слот", "fun:slot"), ("✊ Камінь/ножиці", "fun:rps")],
-        [("🔥 Roast", "fun:roast"), ("🏠 Головне меню", "menu:main")],
-    ])
+def fun_menu_keyboard() -> None:
+    return None
 
 
-def stats_menu_keyboard() -> InlineKeyboardMarkup:
-    return _menu_markup([
-        [("📊 Статистика", "stats:summary"), ("🏆 Топ XP", "stats:xp")],
-        [("👥 Топ активних", "stats:active"), ("🔗 Топ посилань", "stats:links")],
-        [("🏠 Головне меню", "menu:main")],
-    ])
+def stats_menu_keyboard() -> None:
+    return None
 
 
-def settings_menu_keyboard() -> InlineKeyboardMarkup:
-    return _menu_markup([
-        [("🤖 AI статус", "settings:ai"), ("🎲 Рандом ON", "settings:random_on"), ("🎲 Рандом OFF", "settings:random_off")],
-        [("⏰ Ранковий будильник", "settings:morning"), ("🌙 Тихі години", "settings:quiet")],
-        [("🏠 Головне меню", "menu:main")],
-    ])
+def settings_menu_keyboard() -> None:
+    return None
 
 
 def district_keyboard(chat_id: int, user_id: int):
@@ -98,7 +77,12 @@ async def send_districts(message: Message):
 
 @router.message(Command("menu"))
 async def menu_command(message: Message):
-    await message.answer("Головне меню:", reply_markup=main_menu_keyboard())
+    await message.answer(
+        "Меню доступне командами. Повний список: /help\n"
+        "Тривоги: /air_status /air_districts\n"
+        "Статистика: /stats /top /top_links /top_xp\n"
+        "Завантаження: /get URL або /dl_hd URL"
+    )
 
 
 @router.message(F.text == "🚨 Повітряні тривоги")
