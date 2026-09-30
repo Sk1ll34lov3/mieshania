@@ -110,6 +110,11 @@ def _already_posted(chat_id: int, issue_date: date) -> bool:
         return bool(cur.fetchone())
 
 
+def _disable_target(chat_id: int) -> None:
+    with db() as conn, conn.cursor() as cur:
+        cur.execute("UPDATE chats SET horoscope_on=0 WHERE chat_id=%s", (chat_id,))
+
+
 def _save_post(chat_id: int, issue_date: date, content: str, lines: list[dict]) -> None:
     with db() as conn, conn.cursor() as cur:
         cur.execute(
@@ -277,6 +282,17 @@ async def horoscope_loop(bot) -> None:
                             _save_post(chat_id, issue_date, content, cached_lines)
                         except Exception as exc:
                             log.warning("Horoscope delivery failed for %s: %s", chat_id, exc)
+                            error_text = str(exc).lower()
+                            if any(
+                                marker in error_text
+                                for marker in (
+                                    "chat not found",
+                                    "group chat was upgraded",
+                                    "bot was kicked",
+                                    "bot is not a member",
+                                )
+                            ):
+                                _disable_target(chat_id)
         except Exception as exc:
             log.exception("Horoscope loop failed: %s", exc)
         await asyncio.sleep(20)
