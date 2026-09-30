@@ -34,6 +34,7 @@ async def help_cmd(m: Message):
         "<code>/mode pg13</code> | <code>/mode r18</code>\n"
         "<code>/quiet 23:00-08:00</code> | <code>/quiet off</code>\n"
         "<code>/morning_on</code> | <code>/morning_off</code> | <code>/morning_time 09:00</code>\n"
+        "<code>/horoscope_on</code> | <code>/horoscope_off</code> | <code>/horoscope_time 09:30</code>\n"
         "\n<b>Тривоги:</b>\n"
         "<code>/air_on_kyiv</code> | <code>/air_off_kyiv</code>\n"
         "<code>/air_on_region</code> | <code>/air_off_region</code>\n"

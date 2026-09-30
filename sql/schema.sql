@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS chats (
   air_region_on TINYINT DEFAULT 0,
   morning_on TINYINT DEFAULT 0,
   morning_time VARCHAR(5) DEFAULT '09:00',
+  horoscope_on TINYINT DEFAULT 1,
+  horoscope_time VARCHAR(5) DEFAULT '09:30',
   quiet_start VARCHAR(5),
   quiet_end VARCHAR(5)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -50,4 +52,22 @@ CREATE TABLE IF NOT EXISTS air_district_subscriptions (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (chat_id, user_id, district_uid),
   KEY ix_air_district_user (user_id, district_uid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS horoscope_history (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  issue_date DATE NOT NULL,
+  sign VARCHAR(32) NOT NULL,
+  text TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_horoscope_sign_date (sign, issue_date),
+  KEY ix_horoscope_date (issue_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS horoscope_posts (
+  chat_id BIGINT NOT NULL,
+  issue_date DATE NOT NULL,
+  content MEDIUMTEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (chat_id, issue_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

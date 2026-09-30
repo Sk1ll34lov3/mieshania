@@ -36,6 +36,8 @@ def ensure_schema():
           quiet_end   VARCHAR(5) NULL,
           morning_on  TINYINT NOT NULL DEFAULT 0,
           morning_time VARCHAR(5) NOT NULL DEFAULT '09:00',
+          horoscope_on TINYINT NOT NULL DEFAULT 1,
+          horoscope_time VARCHAR(5) NOT NULL DEFAULT '09:30',
           air_city_on TINYINT NOT NULL DEFAULT 0,
           air_region_on TINYINT NOT NULL DEFAULT 0
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;""")
@@ -48,8 +50,20 @@ def ensure_schema():
         if not _column_exists(cur, "chats", "chatter_intensity"):
             cur.execute("""
             ALTER TABLE chats
-              ADD COLUMN chatter_intensity INT NOT NULL DEFAULT 20
+            ADD COLUMN chatter_intensity INT NOT NULL DEFAULT 20
               AFTER chatter_on
+            """)
+        if not _column_exists(cur, "chats", "horoscope_on"):
+            cur.execute("""
+            ALTER TABLE chats
+              ADD COLUMN horoscope_on TINYINT NOT NULL DEFAULT 1
+              AFTER morning_time
+            """)
+        if not _column_exists(cur, "chats", "horoscope_time"):
+            cur.execute("""
+            ALTER TABLE chats
+              ADD COLUMN horoscope_time VARCHAR(5) NOT NULL DEFAULT '09:30'
+              AFTER horoscope_on
             """)
         cur.execute("""
         CREATE TABLE IF NOT EXISTS jokes (
@@ -96,4 +110,22 @@ def ensure_schema():
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (chat_id, user_id, district_uid),
           KEY ix_air_district_user (user_id, district_uid)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;""")
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS horoscope_history (
+          id BIGINT AUTO_INCREMENT PRIMARY KEY,
+          issue_date DATE NOT NULL,
+          sign VARCHAR(32) NOT NULL,
+          text TEXT NOT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          KEY ix_horoscope_sign_date (sign, issue_date),
+          KEY ix_horoscope_date (issue_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;""")
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS horoscope_posts (
+          chat_id BIGINT NOT NULL,
+          issue_date DATE NOT NULL,
+          content MEDIUMTEXT NOT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (chat_id, issue_date)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;""")
