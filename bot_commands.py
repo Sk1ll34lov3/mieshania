@@ -55,10 +55,15 @@ def admin_commands() -> List[BotCommand]:
 
 
 async def register_bot_commands(bot):
-    await bot.set_my_commands(default_commands(), scope=BotCommandScopeDefault(), language_code="uk")
-    await bot.set_my_commands(default_commands(), scope=BotCommandScopeAllPrivateChats(), language_code="uk")
-    await bot.set_my_commands(default_commands(), scope=BotCommandScopeAllGroupChats(), language_code="uk")
-    await bot.set_my_commands(admin_commands(), scope=BotCommandScopeAllChatAdministrators(), language_code="uk")
+    # Не показуємо системне меню команд біля поля вводу.
+    # Самі команди залишаються зареєстрованими в Dispatcher і працюють вручну.
+    for scope in (
+        BotCommandScopeDefault(),
+        BotCommandScopeAllPrivateChats(),
+        BotCommandScopeAllGroupChats(),
+        BotCommandScopeAllChatAdministrators(),
+    ):
+        await bot.delete_my_commands(scope=scope, language_code="uk")
 
 
 async def dump_commands_to_text(bot) -> str:
