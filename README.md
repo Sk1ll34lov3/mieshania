@@ -35,6 +35,7 @@ Mieshania supports multiple command groups with role-based access (default, priv
 | `/horoscope_on` | Enable daily OpenAI horoscope at 09:30 Kyiv time |
 | `/horoscope_off` | Disable daily horoscope |
 | `/horoscope_time HH:MM` | Set the horoscope delivery time |
+| `/horoscope_now` | Admin only: generate a one-off horoscope preview (not saved to history) |
 | `/morning_off` | Disable morning wake-up messages |
 | `/morning_time` | Set wake-up time (HH:MM) |
 | `/joke_add` | Add a joke to your local pool |

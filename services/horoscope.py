@@ -271,6 +271,13 @@ async def _generate(issue_date: date, history: list[dict]) -> list[dict] | None:
     return parsed
 
 
+async def preview_horoscope() -> str | None:
+    """Generate a one-off issue for manual testing without saving history or posts."""
+    tz = ZoneInfo("Europe/Kyiv")
+    lines = await _generate(datetime.now(tz).date(), _recent_history())
+    return _format(lines) if lines else None
+
+
 async def horoscope_loop(bot) -> None:
     tz = ZoneInfo("Europe/Kyiv")
     cached_date: date | None = None
