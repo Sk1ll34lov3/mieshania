@@ -16,6 +16,8 @@ from utils import upsert_chat, get_chat, in_quiet
 from db import db
 from services.jokes import pick_joke_maybe_gpt
 from services.air_alerts import air_alert_loop  # background alarm monitoring
+from config import ADMINS
+from services.horoscope import horoscope_loop, preview_horoscope
 
 router = Router()
 
@@ -56,6 +58,20 @@ def set_morning_time(chat_id: int, hhmm: str):
     with db() as conn, conn.cursor() as cur:
         cur.execute(
             "UPDATE chats SET morning_time=%s WHERE chat_id=%s",
+            (hhmm, chat_id),
+        )
+
+def set_horoscope_on(chat_id: int, on: bool):
+    with db() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE chats SET horoscope_on=%s WHERE chat_id=%s",
+            (1 if on else 0, chat_id),
+        )
+
+def set_horoscope_time(chat_id: int, hhmm: str):
+    with db() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE chats SET horoscope_time=%s WHERE chat_id=%s",
             (hhmm, chat_id),
         )
 
@@ -180,11 +196,46 @@ async def morning_time_cmd(m: Message):
     set_morning_time(m.chat.id, parts[1])
     await m.answer(f"Час підйому встановлено: {parts[1]}")
 
+@router.message(Command("horoscope_on"))
+async def horoscope_on_cmd(m: Message):
+    upsert_chat(m.chat.id)
+    set_horoscope_on(m.chat.id, True)
+    await m.answer("Щоденний гороскоп увімкнено на 09:30 за Києвом ✅")
+
+@router.message(Command("horoscope_off"))
+async def horoscope_off_cmd(m: Message):
+    upsert_chat(m.chat.id)
+    set_horoscope_on(m.chat.id, False)
+    await m.answer("Щоденний гороскоп вимкнено ⛔️")
+
+@router.message(Command("horoscope_time"))
+async def horoscope_time_cmd(m: Message):
+    parts = (m.text or "").split()
+    if len(parts) != 2 or not re.match(r"^\d{2}:\d{2}$", parts[1]):
+        return await m.answer("Використання: <code>/horoscope_time 09:30</code>")
+    hour, minute = (int(x) for x in parts[1].split(":", 1))
+    if hour > 23 or minute > 59:
+        return await m.answer("Невірний час")
+    upsert_chat(m.chat.id)
+    set_horoscope_time(m.chat.id, parts[1])
+    await m.answer(f"Час гороскопу встановлено: {parts[1]}")
+
+@router.message(Command("horoscope_now"))
+async def horoscope_now_cmd(m: Message):
+    if not m.from_user or m.from_user.id not in ADMINS:
+        return await m.answer("Ця команда тільки для адмінів бота")
+    wait = await m.answer("Генерую гороскоп, це може зайняти до хвилини ⏳")
+    content = await preview_horoscope()
+    if not content:
+        return await wait.edit_text("Не вдалось згенерувати гороскоп, дивись логи Horoscope OpenAI")
+    await wait.edit_text(content)
+
 # ---------------- Background starter ----------------
 def start_background_tasks(bot):
     loop = asyncio.get_event_loop()
     loop.create_task(random_loop(bot))
     loop.create_task(morning_blast_loop(bot))
+    loop.create_task(horoscope_loop(bot))
 
     from config import ALERTS_TOKEN
     if ALERTS_TOKEN:
