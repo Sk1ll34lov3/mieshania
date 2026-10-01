@@ -770,6 +770,40 @@ async def get_media_info(url: str) -> Dict[str, object]:
     return await asyncio.to_thread(_ytdlp_info_sync, url)
 
 
+def _is_tiktok_or_instagram(url: str) -> bool:
+    u = (url or "").lower()
+    return "tiktok.com" in u or "instagram.com" in u
+
+
+def _format_caption(description: str, tags) -> str:
+    """Опис, а якщо його нема — хештеги. Ліміт Telegram на caption — 1024."""
+    text = (description or "").strip()
+    if not text and isinstance(tags, list):
+        text = " ".join("#" + str(t).lstrip("#") for t in tags if t)
+    return text[:1024]
+
+
+def _fetch_caption_sync(url: str) -> str:
+    """Опис/хештеги поста TikTok/Instagram. Порожній рядок, якщо не вдалось."""
+    if "tiktok.com" in url.lower():
+        try:
+            r = requests.get("https://www.tiktok.com/oembed", params={"url": url}, timeout=10)
+            if r.ok:
+                text = _format_caption(str(r.json().get("title") or ""), None)
+                if text:
+                    return text
+        except Exception as e:
+            _log(f"CAPTION oembed FAIL: {e}")
+    try:
+        info = _ytdlp_info_sync(url)
+        return _format_caption(
+            str(info.get("description") or info.get("title") or ""), info.get("tags")
+        )
+    except Exception as e:
+        _log(f"CAPTION yt-dlp FAIL: {e}")
+        return ""
+
+
 async def download_url(chat_id: int, url: str, bot, mode: str = "auto", message_thread_id: Optional[int] = None) -> None:
     """
     Завантажує контент і ВІДПРАВЛЯЄ В ЧАТ.
@@ -778,7 +812,19 @@ async def download_url(chat_id: int, url: str, bot, mode: str = "auto", message_
       - альбом (карусель) до 10 елементів
       - Instagram stories (одна сторі за URL)
     """
-    items, title = await asyncio.to_thread(_download_with_fallbacks_sync, url, mode)
+    if _is_tiktok_or_instagram(url) and (mode or "").lower() != "audio":
+        async def _caption() -> str:
+            try:
+                return await asyncio.wait_for(asyncio.to_thread(_fetch_caption_sync, url), timeout=30)
+            except Exception:
+                return ""
+
+        (items, _), title = await asyncio.gather(
+            asyncio.to_thread(_download_with_fallbacks_sync, url, mode),
+            _caption(),
+        )
+    else:
+        items, title = await asyncio.to_thread(_download_with_fallbacks_sync, url, mode)
     message_thread_id = _resolve_target_thread_id(chat_id, message_thread_id)
     force_document = (mode or "").lower() == "file"
 
