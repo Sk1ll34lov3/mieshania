@@ -16,7 +16,7 @@ DB_NAME = os.getenv("DB_NAME")
 DB_USER = os.getenv("DB_USER")
 DB_PASS = os.getenv("DB_PASS")
 
-ADMINS = [1272917367, 276417908]
+ADMINS = [1272917367, 276417908, 301749114]
 
 # alerts.in.ua
 ALERTS_TOKEN = os.getenv("ALERTS_TOKEN")
