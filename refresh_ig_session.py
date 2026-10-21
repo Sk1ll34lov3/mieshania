@@ -33,7 +33,7 @@ def ensure_instagrapi():
         from instagrapi import Client  # noqa
     except ImportError:
         print("📦 Встановлюю instagrapi...")
-        subprocess.run([sys.executable, "-m", "pip", "install", "instagrapi"], check=True)
+        subprocess.run([sys.executable, "-m", "pip", "install", "instagrapi>=3.1.0"], check=True)
 
 
 def load_env_credentials():
@@ -92,11 +92,12 @@ def main():
     from refresh_ig_cookies import build_cookies, cookies_valid, write_netscape
     import pathlib
     cookies = build_cookies(cl, {})
-    if not cookies_valid(cookies):
-        print("❌ Нові кукі не пройшли перевірку — на VPS нічого не заливаю.")
-        sys.exit(1)
-    write_netscape(pathlib.Path(LOCAL_COOKIES_FILE), cookies)
-    print(f"🍪 Кукі збережені: {LOCAL_COOKIES_FILE}")
+    push_cookies = cookies_valid(cookies)
+    if push_cookies:
+        write_netscape(pathlib.Path(LOCAL_COOKIES_FILE), cookies)
+        print(f"🍪 Кукі збережені: {LOCAL_COOKIES_FILE}")
+    else:
+        print("⚠️  Веб не прийняв кукі (mobile sessionid) — кукі на VPS не чіпаю, працюватиме instagrapi fallback.")
 
     auto = "--yes" in sys.argv
     print()
@@ -107,7 +108,10 @@ def main():
         print(f"  scp {LOCAL_COOKIES_FILE} {VPS_HOST}:{VPS_COOKIES_PATH}")
         return
 
-    for local, remote in ((LOCAL_SESSION_FILE, VPS_SESSION_PATH), (LOCAL_COOKIES_FILE, VPS_COOKIES_PATH)):
+    files = [(LOCAL_SESSION_FILE, VPS_SESSION_PATH)]
+    if push_cookies:
+        files.append((LOCAL_COOKIES_FILE, VPS_COOKIES_PATH))
+    for local, remote in files:
         print(f"   SCP {local} → {VPS_HOST}:{remote}...")
         if subprocess.run(["scp", local, f"{VPS_HOST}:{remote}"]).returncode != 0:
             print(f"❌ SCP не вдався: scp {local} {VPS_HOST}:{remote}")
@@ -115,7 +119,7 @@ def main():
 
     r = subprocess.run(
         ["ssh", VPS_HOST,
-         f"chmod 600 {VPS_SESSION_PATH} {VPS_COOKIES_PATH} && systemctl restart mieshania && sleep 2 && systemctl is-active mieshania"],
+         f"chmod 600 {VPS_SESSION_PATH} && systemctl restart mieshania && sleep 2 && systemctl is-active mieshania"],
         capture_output=True, text=True,
     )
     status = (r.stdout.strip() or r.stderr.strip())

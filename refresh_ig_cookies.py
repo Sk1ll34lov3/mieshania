@@ -135,7 +135,12 @@ def login_with_instagrapi() -> tuple:
     # Повторний логін поверх старої сесії зберігає device settings (менше підозр у IG)
     if SESSION_FILE.exists():
         try:
-            cl.set_settings(json.loads(SESSION_FILE.read_text(encoding="utf-8")))
+            settings = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+            # Лишаємо тільки device-дані; мертві sessionid/cookies інакше
+            # змушують instagrapi "залогінитись" без реального логіну.
+            settings["authorization_data"] = {}
+            settings["cookies"] = {}
+            cl.set_settings(settings)
         except Exception as e:
             log(f"old session not reusable: {e}")
 
@@ -166,45 +171,64 @@ def build_cookies(cl, old: dict) -> dict:
     return {k: v for k, v in new.items() if v}
 
 
+def session_valid() -> bool:
+    """Сесія instagrapi (ig_session.json) жива, якщо account_info() відповідає."""
+    if not SESSION_FILE.exists():
+        return False
+    try:
+        from instagrapi import Client
+
+        cl = Client()
+        cl.set_settings(json.loads(SESSION_FILE.read_text(encoding="utf-8")))
+        cl.account_info()
+        return True
+    except Exception as e:
+        log(f"session check failed: {type(e).__name__}: {str(e)[:120]}")
+        return False
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--force", action="store_true", help="логін навіть якщо кукі валідні")
-    ap.add_argument("--check", action="store_true", help="тільки перевірити кукі")
+    ap.add_argument("--force", action="store_true", help="логін навіть якщо сесія жива")
+    ap.add_argument("--check", action="store_true", help="тільки перевірити сесію")
     args = ap.parse_args()
 
     load_env()
     old = read_cookies(COOKIES_FILE)
-    valid = cookies_valid(old)
+    valid = session_valid()
 
     if args.check:
-        log("cookies valid" if valid else "cookies INVALID")
+        log("session valid" if valid else "session INVALID")
         return 0 if valid else 1
     if valid and not args.force:
-        log("cookies still valid — nothing to do")
+        log("session still valid — nothing to do")
         return 0
 
-    log("cookies invalid/missing — refreshing" if not valid else "forced refresh")
+    log("session invalid/missing — refreshing" if not valid else "forced refresh")
     try:
         cl, _ = login_with_instagrapi()
+        cl.account_info()  # справжня перевірка, що сесія жива
         new = build_cookies(cl, old)
     except Exception as e:
         log(f"LOGIN FAIL: {type(e).__name__}: {e}")
         log("Якщо challenge/2FA — залогінься з residential IP: refresh_ig_session.py")
         return 2
 
-    if not cookies_valid(new):
-        log("new cookies failed validation — старі файли НЕ перезаписано")
-        return 3
-
-    # Зберігаємо сесію instagrapi і кукі (з бекапом)
     SESSION_FILE.write_text(json.dumps(cl.get_settings()), encoding="utf-8")
     os.chmod(SESSION_FILE, 0o600)
-    if COOKIES_FILE.exists():
-        shutil.copy2(COOKIES_FILE, str(COOKIES_FILE) + ".bak")
-    tmp = COOKIES_FILE.with_suffix(".tmp")
-    write_netscape(tmp, new)
-    os.replace(tmp, COOKIES_FILE)
-    log(f"OK: {COOKIES_FILE.name} + {SESSION_FILE.name} оновлено")
+    log(f"OK: {SESSION_FILE.name} оновлено")
+
+    # Кукі для yt-dlp: sessionid з mobile API веб-ендпоінти часто відхиляють,
+    # тому пишемо їх тільки якщо веб їх приймає.
+    if cookies_valid(new):
+        if COOKIES_FILE.exists():
+            shutil.copy2(COOKIES_FILE, str(COOKIES_FILE) + ".bak")
+        tmp = COOKIES_FILE.with_suffix(".tmp")
+        write_netscape(tmp, new)
+        os.replace(tmp, COOKIES_FILE)
+        log(f"OK: {COOKIES_FILE.name} оновлено")
+    else:
+        log("web cookies not accepted — cookies_instagram.txt НЕ змінено (fallback піде через instagrapi)")
     return 0
 
 
