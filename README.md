@@ -82,7 +82,7 @@ Random joke scheduler and morning wake-up are designed primarily for groups.
 
 Moderation is enabled per chat with `/feature moderation on`.
 
-- Flood is counted per user inside one chat: 5 messages within 3 seconds deletes the triggering message and adds one warning.
+- Flood is counted per user inside one chat: 5 separate messages within 3 seconds deletes the triggering message and adds one warning. A forwarded photo album with one `media_group_id` counts as one message.
 - A second flood burst within 60 seconds applies a 5 minute mute.
 - Link spam counts URLs from one user in one chat across 30 seconds. More than 5 URLs applies a 10 minute mute; a single message with more than 3 URLs is deleted.
 - A blacklist rule can delete, warn, or mute. A blacklist mute uses the minutes configured in `/blacklist_add word mute MINUTES`.

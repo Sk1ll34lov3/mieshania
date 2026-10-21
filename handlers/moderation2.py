@@ -57,7 +57,12 @@ async def smart_moderation(m: Message):
     now = time.time()
 
     # антифлуд: 5 повідомлень за 3 секунди
-    cnt = register_message(m.chat.id, m.from_user.id, now)
+    cnt = register_message(
+        m.chat.id,
+        m.from_user.id,
+        now,
+        media_group_id=getattr(m, "media_group_id", None),
+    )
     if cnt >= 5:
         clear_message_window(m.chat.id, m.from_user.id)
         try:
