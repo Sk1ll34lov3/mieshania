@@ -420,10 +420,19 @@ def _try_instagrapi(url: str) -> Optional[Tuple[List[Dict[str, str]], str]]:
 
     _log(f"INSTAGRAPI START: {url}")
     os.makedirs(TMP_DIR, exist_ok=True)
-    if "/stories/" in url.lower():
-        items = igc.download_story_by_url(url, TMP_DIR)
-    else:
-        items = igc.download_media_by_url(url, TMP_DIR)
+    # instagrapi кладе файл поруч із dest_dir (<dest_dir>.mp4) — унікальний dir
+    # потрібен, щоб паралельні скачки не перетирали один одного.
+    dest = tempfile.mkdtemp(dir=TMP_DIR, prefix="ig_")
+    try:
+        if "/stories/" in url.lower():
+            items = igc.download_story_by_url(url, dest)
+        else:
+            items = igc.download_media_by_url(url, dest)
+    finally:
+        try:
+            os.rmdir(dest)
+        except OSError:
+            pass
     if not items:
         return None
     return items, "instagram"
