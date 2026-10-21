@@ -71,3 +71,16 @@ CREATE TABLE IF NOT EXISTS horoscope_posts (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (chat_id, issue_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS slap_scores (
+  chat_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  username VARCHAR(255) NULL,
+  points INT NOT NULL DEFAULT 0,
+  games INT NOT NULL DEFAULT 0,
+  hits INT NOT NULL DEFAULT 0,
+  blocks INT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (chat_id, user_id),
+  KEY ix_slap_top (chat_id, points, hits)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

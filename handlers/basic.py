@@ -26,6 +26,8 @@ async def help_cmd(m: Message):
         "<code>/roast @user</code> — підкол\n"
         "<code>/rps</code> — камінь/ножиці/папір\n"
         "<code>/slot</code> — автомат\n"
+        "<code>/slap</code> — випадкова гра з ладошкі, можна reply або без цілі\n"
+        "<code>/slap_top</code> — топ гравців ладошкі\n"
         "<code>/chat_ai_on</code> | <code>/chat_ai_off</code>\n"
         "<code>/chat_ai_intensity 20</code> | <code>/chat_ai_status</code>\n"
         "\n<b>Режими і розклад:</b>\n"

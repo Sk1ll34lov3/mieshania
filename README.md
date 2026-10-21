@@ -26,6 +26,8 @@ Mieshania supports multiple command groups with role-based access (default, priv
 | `/roast` | Roast a tagged user |
 | `/rps` | Rock–Paper–Scissors |
 | `/slot` | 🎰 Slot machine |
+| `/slap` | Random palm slap game, target by reply or random opponent |
+| `/slap_top` | Show the local chat slap leaderboard |
 | `/random_on` | Enable random joke posting |
 | `/random_off` | Disable random joke posting |
 | `/random_window` | Set random joke interval (minutes) |
