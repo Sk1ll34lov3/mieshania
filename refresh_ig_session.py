@@ -11,8 +11,8 @@
 
 Що робить:
     1. Логінить акаунт solov__design в Instagram через instagrapi
-    2. Зберігає сесію в ig_session.json
-    3. Пропонує залити файл на VPS і рестартнути бота
+    2. Зберігає сесію в ig_session.json і кукі в cookies_instagram.txt
+    3. Заливає обидва файли на VPS і рестартить бота (--yes: без питань)
 """
 
 import getpass
@@ -21,9 +21,11 @@ import os
 import subprocess
 import sys
 
-VPS_HOST = "root@91.98.134.12"
+VPS_HOST = "mieshania"  # alias з ~/.ssh/config (root@91.98.134.12)
 VPS_SESSION_PATH = "/var/opt/mieshania/ig_session.json"
+VPS_COOKIES_PATH = "/var/opt/mieshania/cookies_instagram.txt"
 LOCAL_SESSION_FILE = "ig_session.json"
+LOCAL_COOKIES_FILE = "cookies_instagram.txt"
 
 
 def ensure_instagrapi():
@@ -86,38 +88,41 @@ def main():
         json.dump(cl.get_settings(), f, indent=2)
     print(f"💾 Сесія збережена: {LOCAL_SESSION_FILE}")
 
+    # Кукі для yt-dlp (Netscape) з тієї ж сесії
+    from refresh_ig_cookies import build_cookies, cookies_valid, write_netscape
+    import pathlib
+    cookies = build_cookies(cl, {})
+    if not cookies_valid(cookies):
+        print("❌ Нові кукі не пройшли перевірку — на VPS нічого не заливаю.")
+        sys.exit(1)
+    write_netscape(pathlib.Path(LOCAL_COOKIES_FILE), cookies)
+    print(f"🍪 Кукі збережені: {LOCAL_COOKIES_FILE}")
+
+    auto = "--yes" in sys.argv
     print()
-    deploy = input(f"🚀 Залити на VPS ({VPS_HOST})? [Y/n]: ").strip().lower()
-    if deploy in ("", "y", "yes", "так", "т", "y"):
-        print(f"   SCP {LOCAL_SESSION_FILE} → {VPS_HOST}:{VPS_SESSION_PATH}...")
-        result = subprocess.run(
-            ["scp", LOCAL_SESSION_FILE, f"{VPS_HOST}:{VPS_SESSION_PATH}"]
-        )
-        if result.returncode != 0:
-            print("❌ SCP не вдався. Задеплой вручну:")
-            print(f"   scp {LOCAL_SESSION_FILE} {VPS_HOST}:{VPS_SESSION_PATH}")
+    deploy = "y" if auto else input(f"🚀 Залити на VPS ({VPS_HOST}) і рестартнути бота? [Y/n]: ").strip().lower()
+    if deploy not in ("", "y", "yes", "так", "т"):
+        print("
+Задеплой вручну:")
+        print(f"  scp {LOCAL_SESSION_FILE} {VPS_HOST}:{VPS_SESSION_PATH}")
+        print(f"  scp {LOCAL_COOKIES_FILE} {VPS_HOST}:{VPS_COOKIES_PATH}")
+        return
+
+    for local, remote in ((LOCAL_SESSION_FILE, VPS_SESSION_PATH), (LOCAL_COOKIES_FILE, VPS_COOKIES_PATH)):
+        print(f"   SCP {local} → {VPS_HOST}:{remote}...")
+        if subprocess.run(["scp", local, f"{VPS_HOST}:{remote}"]).returncode != 0:
+            print(f"❌ SCP не вдався: scp {local} {VPS_HOST}:{remote}")
             sys.exit(1)
 
-        print("✅ Файл залито!")
-
-        restart = input("🔄 Рестартнути бота? [Y/n]: ").strip().lower()
-        if restart in ("", "y", "yes", "так", "т"):
-            print("   Рестарт mieshania.service...")
-            r = subprocess.run(
-                ["ssh", VPS_HOST, "systemctl restart mieshania && sleep 2 && systemctl is-active mieshania"],
-                capture_output=True, text=True,
-            )
-            status = r.stdout.strip() or r.stderr.strip()
-            if "active" in status:
-                print("✅ Бот запущений!")
-            else:
-                print(f"   Статус: {status}")
-    else:
-        print(f"\nЗадеплой вручну:")
-        print(f"  scp {LOCAL_SESSION_FILE} {VPS_HOST}:{VPS_SESSION_PATH}")
-        print(f"  ssh {VPS_HOST} systemctl restart mieshania")
-
-    print("\n✨ Готово! Сесія оновлена.")
+    r = subprocess.run(
+        ["ssh", VPS_HOST,
+         f"chmod 600 {VPS_SESSION_PATH} {VPS_COOKIES_PATH} && systemctl restart mieshania && sleep 2 && systemctl is-active mieshania"],
+        capture_output=True, text=True,
+    )
+    status = (r.stdout.strip() or r.stderr.strip())
+    print("✅ Бот запущений!" if status.endswith("active") else f"   Статус: {status}")
+    print("
+✨ Готово! Сесія і кукі оновлені.")
 
 
 if __name__ == "__main__":
