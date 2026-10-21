@@ -117,14 +117,14 @@ async def slap_cmd(m: Message):
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text="👊 Вєбати в ответ",
+                        text="👊 Вʼєбати у відповідь",
                         callback_data=f"slap:return:{m.from_user.id}",
                     )
                 ]
             ]
         )
         await m.answer(
-            f"💥 {target}, вас уєбали з ладошкі\nВєбати в ответ?\n\n{attacker} отримує +1 бал",
+            f"💥 {target}, вас уєбали з ладошкі\nВʼєбати у відповідь?\n\n{attacker} отримує +1 бал",
             reply_markup=keyboard,
         )
     else:
@@ -178,7 +178,7 @@ async def slap_return_callback(callback: CallbackQuery):
     target = _slap_name(original_attacker_id, None)
     if landed:
         await callback.message.answer(
-            f"👊 {attacker} вєбав у відповідь {target}\n💥 УЄБАЛО. +1 бал помсти"
+            f"👊 {attacker} вʼєбав у відповідь {target}\n💥 УЄБАЛО. +1 бал помсти"
         )
     else:
         await callback.message.answer(
