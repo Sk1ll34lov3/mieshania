@@ -16,7 +16,8 @@ from utils import upsert_chat, get_chat, in_quiet
 from db import db
 from services.jokes import pick_joke_maybe_gpt
 from services.air_alerts import air_alert_loop  # background alarm monitoring
-from services.horoscope import horoscope_loop
+from config import ADMINS
+from services.horoscope import horoscope_loop, preview_horoscope
 
 router = Router()
 
@@ -218,6 +219,16 @@ async def horoscope_time_cmd(m: Message):
     upsert_chat(m.chat.id)
     set_horoscope_time(m.chat.id, parts[1])
     await m.answer(f"Час гороскопу встановлено: {parts[1]}")
+
+@router.message(Command("horoscope_now"))
+async def horoscope_now_cmd(m: Message):
+    if not m.from_user or m.from_user.id not in ADMINS:
+        return await m.answer("Ця команда тільки для адмінів бота")
+    wait = await m.answer("Генерую гороскоп, це може зайняти до хвилини ⏳")
+    content = await preview_horoscope()
+    if not content:
+        return await wait.edit_text("Не вдалось згенерувати гороскоп, дивись логи Horoscope OpenAI")
+    await wait.edit_text(content)
 
 # ---------------- Background starter ----------------
 def start_background_tasks(bot):
