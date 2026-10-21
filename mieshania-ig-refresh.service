@@ -1,0 +1,9 @@
+[Unit]
+Description=Refresh Instagram cookies/session for Mieshania bot
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/opt/mieshania
+ExecStart=/var/opt/mieshania/.venv/bin/python /var/opt/mieshania/refresh_ig_cookies.py
+User=root

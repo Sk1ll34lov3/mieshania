@@ -5,3 +5,5 @@ aiohttp==3.10.5
 openai==1.51.0
 
 alerts-in-ua==0.3.2
+instagrapi==3.1.0
+requests
