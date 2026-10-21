@@ -1,0 +1,7 @@
+.env
+ig.env
+ig_session.json
+cookies*.txt
+cookies*.bak
+__pycache__/
+.venv/

@@ -48,6 +48,7 @@ def _log(msg: str) -> None:
 
 
 _client: Optional["Client"] = None
+_client_mtime: float = 0.0
 
 
 def _make_client() -> "Client":
@@ -93,17 +94,20 @@ def _load_session(cl: "Client") -> bool:
 
 def get_client() -> "Client":
     """Повертає готовий (залогінений) клієнт. Thread-unsafe але для asyncio.to_thread ок."""
-    global _client
+    global _client, _client_mtime
     if not INSTAGRAPI_AVAILABLE:
         raise RuntimeError("instagrapi not installed")
     if not SESSION_FILE or not pathlib.Path(SESSION_FILE).exists():
         raise RuntimeError("ig_session.json not found — refresh locally and SCP to server")
 
-    if _client is None:
+    # Перечитуємо сесію, якщо refresh_ig_cookies.py оновив файл
+    mtime = pathlib.Path(SESSION_FILE).stat().st_mtime
+    if _client is None or mtime != _client_mtime:
         cl = _make_client()
         if not _load_session(cl):
             raise RuntimeError("failed to load ig_session.json")
         _client = cl
+        _client_mtime = mtime
 
     return _client
 
@@ -118,7 +122,7 @@ def _with_relogin(fn):
     except (LoginRequired, ClientLoginRequired):
         _client = None
         _log("SESSION EXPIRED: needs manual refresh via refresh_ig_session.py")
-        raise IGSessionExpiredError("Instagram session expired — run refresh_ig_session.py locally")
+        raise IGSessionExpiredError("Instagram session expired — run refresh_ig_cookies.py on the VPS")
 
 
 # =================== Публічний API ===================

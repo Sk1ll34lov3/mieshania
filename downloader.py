@@ -414,6 +414,30 @@ def _try_instagram_scrape_fallback(url: str) -> Optional[str]:
         return None
 
 
+def _try_instagrapi(url: str) -> Optional[Tuple[List[Dict[str, str]], str]]:
+    """Fallback через instagrapi (сесія ig_session.json). Stories і пости/reels."""
+    import instagram_client as igc
+
+    _log(f"INSTAGRAPI START: {url}")
+    os.makedirs(TMP_DIR, exist_ok=True)
+    # instagrapi кладе файл поруч із dest_dir (<dest_dir>.mp4) — унікальний dir
+    # потрібен, щоб паралельні скачки не перетирали один одного.
+    dest = tempfile.mkdtemp(dir=TMP_DIR, prefix="ig_")
+    try:
+        if "/stories/" in url.lower():
+            items = igc.download_story_by_url(url, dest)
+        else:
+            items = igc.download_media_by_url(url, dest)
+    finally:
+        try:
+            os.rmdir(dest)
+        except OSError:
+            pass
+    if not items:
+        return None
+    return items, "instagram"
+
+
 def _download_with_fallbacks_sync(url: str, mode: str = "auto") -> Tuple[List[Dict[str, str]], str]:
     """
     cobalt.tools → yt-dlp → (IG scrape fallback) strategy.
@@ -478,8 +502,17 @@ def _download_with_fallbacks_sync(url: str, mode: str = "auto") -> Tuple[List[Di
     try:
         return _download_sync(url, profile=profile)
     except Exception as e:
-        # ----- IG scrape fallback -----
         if "instagram.com" in (url or "").lower():
+            # ----- INSTAGRAPI fallback -----
+            try:
+                res = _try_instagrapi(url)
+                if res:
+                    _log(f"INSTAGRAPI SUCCESS: {len(res[0])} item(s)")
+                    return res
+            except Exception as ig_err:
+                _log(f"INSTAGRAPI FAIL: {ig_err}")
+
+            # ----- IG scrape fallback -----
             media = _try_instagram_scrape_fallback(url)
             if media:
                 _log("IG SCRAPE FALLBACK SUCCESS")
