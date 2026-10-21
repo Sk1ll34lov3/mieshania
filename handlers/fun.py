@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 # handlers/fun.py
 
+import html
 import random, re
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from utils import remember_user, get_chat, extract_mention
+from utils import remember_user, get_chat, extract_mention, resolve_target_and_reason
 from services.jokes import pick_joke_maybe_gpt, pick_personal_joke
+from services.slap import play_slap, random_opponent, top_slap_players
 
 router = Router()
 
@@ -76,3 +78,109 @@ async def rps_cmd(m: Message):
 @router.message(Command("slot"))
 async def slot_cmd(m: Message):
     await m.bot.send_dice(m.chat.id, emoji="🎰")
+
+
+def _slap_name(user_id: int, username: str | None) -> str:
+    if username:
+        return "@" + html.escape(username.lstrip("@"))
+    return f"<a href='tg://user?id={int(user_id)}'>учасник</a>"
+
+
+@router.message(Command("slap"))
+async def slap_cmd(m: Message):
+    if not m.from_user:
+        return
+    remember_user(m.chat.id, m.from_user.id, m.from_user.username)
+    target_id, target_username, _ = await resolve_target_and_reason(m, m.bot)
+    if target_id is None:
+        target = random_opponent(m.chat.id, m.from_user.id)
+        if not target:
+            return await m.answer(
+                "Нема кого лупити. Зроби reply на повідомлення або дочекайся ще одного гравця."
+            )
+        target_id = int(target["user_id"])
+        target_username = target.get("username")
+    if int(target_id) == int(m.from_user.id):
+        return await m.answer("Сам себе не бий. Зроби reply на іншого гравця.")
+
+    landed = play_slap(
+        m.chat.id,
+        m.from_user.id,
+        m.from_user.username,
+        int(target_id),
+        target_username,
+    )
+    attacker = _slap_name(m.from_user.id, m.from_user.username)
+    target = _slap_name(int(target_id), target_username)
+    if landed:
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="👊 Вʼєбати у відповідь",
+                        callback_data=f"slap:return:{m.from_user.id}",
+                    )
+                ]
+            ]
+        )
+        await m.answer(
+            f"💥 {target}, вас уєбали з ладошкі\nВʼєбати у відповідь?\n\n{attacker} отримує +1 бал",
+            reply_markup=keyboard,
+        )
+    else:
+        await m.answer(f"🖐 {attacker} замахнувся на {target}\n🛡 Захистився. +1 бал захиснику")
+
+
+@router.message(Command("slap_top"))
+async def slap_top_cmd(m: Message):
+    rows = top_slap_players(m.chat.id)
+    if not rows:
+        return await m.answer("Топ поки порожній. Напиши /slap і починай роздачу.")
+    lines = ["🏆 <b>Топ ладошкі</b>"]
+    for index, row in enumerate(rows, 1):
+        name = _slap_name(int(row["user_id"]), row.get("username"))
+        lines.append(
+            f"{index}. {name}  <b>{int(row['points'])}</b> балів "
+            f"({int(row['hits'])} влучань, {int(row['blocks'])} захистів)"
+        )
+    await m.answer("\n".join(lines))
+
+
+@router.callback_query(F.data.startswith("slap:return:"))
+async def slap_return_callback(callback: CallbackQuery):
+    if not callback.from_user or not callback.message:
+        return await callback.answer()
+    try:
+        original_attacker_id = int(callback.data.rsplit(":", 1)[1])
+    except (AttributeError, ValueError):
+        return await callback.answer("Кнопка вже неактивна", show_alert=True)
+    if callback.from_user.id == original_attacker_id:
+        return await callback.answer("Сам себе не бий", show_alert=True)
+
+    await callback.answer()
+    remember_user(
+        callback.message.chat.id,
+        callback.from_user.id,
+        callback.from_user.username,
+    )
+    landed = play_slap(
+        callback.message.chat.id,
+        callback.from_user.id,
+        callback.from_user.username,
+        original_attacker_id,
+        None,
+    )
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    attacker = _slap_name(callback.from_user.id, callback.from_user.username)
+    target = _slap_name(original_attacker_id, None)
+    if landed:
+        await callback.message.answer(
+            f"👊 {attacker} вʼєбав у відповідь {target}\n💥 УЄБАЛО. +1 бал помсти"
+        )
+    else:
+        await callback.message.answer(
+            f"🛡 {target} знову захистився від {attacker}\n+😎 Захиснику +1 бал"
+        )

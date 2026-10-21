@@ -1,5 +1,6 @@
 import re
-from datetime import datetime, time as dtime
+import time
+from datetime import datetime, time as dtime, timedelta, timezone
 from aiogram.types import Message, ChatPermissions
 from config import ADMINS
 from db import db
@@ -111,19 +112,26 @@ def is_muted_now(chat_id: int, user_id: int) -> bool:
         row = cur.fetchone()
         if not row or not row.get("muted_until"): return False
         try:
-            from datetime import datetime as _dt
-            return _dt.utcnow() < row["muted_until"]
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            return now < row["muted_until"]
         except Exception:
             return False
 
 async def restrict_for_minutes(bot, chat_id: int, user_id: int, minutes: int):
-    from datetime import datetime, timedelta
-    until = datetime.utcnow() + timedelta(minutes=minutes)
+    minutes = max(1, min(525600, int(minutes)))
+    until = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=minutes)
+    until_timestamp = int(time.time()) + minutes * 60
     await bot.restrict_chat_member(
         chat_id, user_id,
         permissions=ChatPermissions(can_send_messages=False),
-        until_date=until
+        until_date=until_timestamp
     )
     with db() as conn, conn.cursor() as cur:
-        cur.execute("UPDATE user_moderation SET muted_until=%s WHERE chat_id=%s AND user_id=%s",
-                    (until, chat_id, user_id))
+        cur.execute(
+            """
+            INSERT INTO user_moderation (chat_id, user_id, muted_until)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE muted_until=VALUES(muted_until)
+            """,
+            (chat_id, user_id, until),
+        )
