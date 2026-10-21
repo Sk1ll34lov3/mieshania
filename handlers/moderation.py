@@ -1,3 +1,5 @@
+import re
+
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
@@ -26,6 +28,12 @@ def set_warns(chat_id: int, user_id: int, warns: int):
     with db() as conn, conn.cursor() as cur:
         cur.execute("UPDATE user_moderation SET warns=%s WHERE chat_id=%s AND user_id=%s", (warns, chat_id, user_id))
 
+def parse_mute_minutes(reason: str, default: int = 15) -> int:
+    values = re.findall(r"(?<!\S)\d+(?!\S)", reason or "")
+    if not values:
+        return default
+    return max(1, min(525600, int(values[-1])))
+
 @router.message(Command("warn"))
 async def warn_cmd(m: Message):
     if not await ensure_admin(m): return
@@ -48,10 +56,7 @@ async def warn_cmd(m: Message):
 async def mute_cmd(m: Message):
     if not await ensure_admin(m): return
     uid, uname, reason = await resolve_target_and_reason(m, m.bot)
-    minutes = 15
-    parts = (m.text or "").split()
-    if len(parts) >= 3 and parts[-1].isdigit():
-        minutes = max(1, int(parts[-1]))
+    minutes = parse_mute_minutes(reason)
     if not uid:
         return await m.answer(("Не знайшов ID для @" + (uname or "") + ". ") + "Зроби реплай або нехай користувач хоч раз напише у чат.")
     await restrict_for_minutes(m.bot, m.chat.id, uid, minutes)

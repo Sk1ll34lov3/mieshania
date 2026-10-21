@@ -78,6 +78,18 @@ Random joke scheduler and morning wake-up are designed primarily for groups.
 | `/ban` | Ban @user |
 | `/kick` | Kick @user from group |
 
+### Moderation and spam rules
+
+Moderation is enabled per chat with `/feature moderation on`.
+
+- Flood is counted per user inside one chat: 5 messages within 3 seconds deletes the triggering message and adds one warning.
+- A second flood burst within 60 seconds applies a 5 minute mute.
+- Link spam counts URLs from one user in one chat across 30 seconds. More than 5 URLs applies a 10 minute mute; a single message with more than 3 URLs is deleted.
+- A blacklist rule can delete, warn, or mute. A blacklist mute uses the minutes configured in `/blacklist_add word mute MINUTES`.
+- Flood and link counters are held in memory and reset when the service restarts. Warnings and mute expiry are stored in MySQL.
+
+Mute duration works in all target formats: reply with `/mute 60`, mention with `/mute @user 60`, or ID with `/mute 123456 60`. If no minutes are supplied, the default is 15 minutes.
+
 ---
 
 ## ⚙️ Requirements

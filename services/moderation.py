@@ -45,6 +45,11 @@ def register_flood_strike(chat_id: int, user_id: int, now: float) -> int:
     return len(dq)
 
 
+def clear_message_window(chat_id: int, user_id: int) -> None:
+    """Finish one flood burst so its remaining messages do not create new strikes."""
+    _msg_times.pop((int(chat_id), int(user_id)), None)
+
+
 def add_warn(chat_id: int, user_id: int) -> int:
     with db() as conn, conn.cursor() as cur:
         cur.execute(
