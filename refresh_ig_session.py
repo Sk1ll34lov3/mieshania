@@ -102,8 +102,7 @@ def main():
     print()
     deploy = "y" if auto else input(f"🚀 Залити на VPS ({VPS_HOST}) і рестартнути бота? [Y/n]: ").strip().lower()
     if deploy not in ("", "y", "yes", "так", "т"):
-        print("
-Задеплой вручну:")
+        print("\nЗадеплой вручну:")
         print(f"  scp {LOCAL_SESSION_FILE} {VPS_HOST}:{VPS_SESSION_PATH}")
         print(f"  scp {LOCAL_COOKIES_FILE} {VPS_HOST}:{VPS_COOKIES_PATH}")
         return
@@ -121,8 +120,7 @@ def main():
     )
     status = (r.stdout.strip() or r.stderr.strip())
     print("✅ Бот запущений!" if status.endswith("active") else f"   Статус: {status}")
-    print("
-✨ Готово! Сесія і кукі оновлені.")
+    print("\n✨ Готово! Сесія і кукі оновлені.")
 
 
 if __name__ == "__main__":
