@@ -13,6 +13,7 @@ from db import db
 _msg_times: Dict[Tuple[int, int], Deque[float]] = {}
 _flood_strikes: Dict[Tuple[int, int], Deque[float]] = {}
 _link_times: Dict[Tuple[int, int], Deque[float]] = {}
+_media_group_times: Dict[Tuple[int, int], Dict[str, float]] = {}
 
 
 def _prune(dq: Deque[float], window_sec: float, now: float) -> None:
@@ -20,11 +21,24 @@ def _prune(dq: Deque[float], window_sec: float, now: float) -> None:
         dq.popleft()
 
 
-def register_message(chat_id: int, user_id: int, now: float) -> int:
+def register_message(
+    chat_id: int,
+    user_id: int,
+    now: float,
+    media_group_id: str | None = None,
+) -> int:
     key = (int(chat_id), int(user_id))
     dq = _msg_times.setdefault(key, deque())
-    dq.append(now)
     _prune(dq, 3.0, now)
+    if media_group_id:
+        groups = _media_group_times.setdefault(key, {})
+        for group_id, seen_at in list(groups.items()):
+            if now - seen_at > 3.0:
+                groups.pop(group_id, None)
+        if media_group_id in groups:
+            return len(dq)
+        groups[media_group_id] = now
+    dq.append(now)
     return len(dq)
 
 
@@ -43,6 +57,13 @@ def register_flood_strike(chat_id: int, user_id: int, now: float) -> int:
     dq.append(now)
     _prune(dq, 60.0, now)
     return len(dq)
+
+
+def clear_message_window(chat_id: int, user_id: int) -> None:
+    """Finish one flood burst so its remaining messages do not create new strikes."""
+    key = (int(chat_id), int(user_id))
+    _msg_times.pop(key, None)
+    _media_group_times.pop(key, None)
 
 
 def add_warn(chat_id: int, user_id: int) -> int:

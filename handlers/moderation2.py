@@ -15,6 +15,7 @@ from services.media import extract_urls
 from services.settings import get_chat_settings
 from services.moderation import (
     register_message,
+    clear_message_window,
     register_flood_strike,
     register_links,
     add_warn,
@@ -56,8 +57,14 @@ async def smart_moderation(m: Message):
     now = time.time()
 
     # антифлуд: 5 повідомлень за 3 секунди
-    cnt = register_message(m.chat.id, m.from_user.id, now)
+    cnt = register_message(
+        m.chat.id,
+        m.from_user.id,
+        now,
+        media_group_id=getattr(m, "media_group_id", None),
+    )
     if cnt >= 5:
+        clear_message_window(m.chat.id, m.from_user.id)
         try:
             await m.bot.delete_message(m.chat.id, m.message_id)
         except Exception:

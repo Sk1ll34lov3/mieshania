@@ -26,12 +26,18 @@ Mieshania supports multiple command groups with role-based access (default, priv
 | `/roast` | Roast a tagged user |
 | `/rps` | Rock–Paper–Scissors |
 | `/slot` | 🎰 Slot machine |
+| `/slap` | Random palm slap game, target by reply or random opponent |
+| `/slap_top` | Show the local chat slap leaderboard |
 | `/random_on` | Enable random joke posting |
 | `/random_off` | Disable random joke posting |
 | `/random_window` | Set random joke interval (minutes) |
 | `/mode` | Set joke tone: `pg13` or `r18` |
 | `/quiet` | Set quiet hours or disable them |
 | `/morning_on` | Enable morning wake-up messages |
+| `/horoscope_on` | Enable daily OpenAI horoscope at 09:30 Kyiv time |
+| `/horoscope_off` | Disable daily horoscope |
+| `/horoscope_time HH:MM` | Set the horoscope delivery time |
+| `/horoscope_now` | Admin only: generate a one-off horoscope preview (not saved to history) |
 | `/morning_off` | Disable morning wake-up messages |
 | `/morning_time` | Set wake-up time (HH:MM) |
 | `/joke_add` | Add a joke to your local pool |
@@ -73,6 +79,18 @@ Random joke scheduler and morning wake-up are designed primarily for groups.
 | `/unmute` | Unmute @user |
 | `/ban` | Ban @user |
 | `/kick` | Kick @user from group |
+
+### Moderation and spam rules
+
+Moderation is enabled per chat with `/feature moderation on`.
+
+- Flood is counted per user inside one chat: 5 separate messages within 3 seconds deletes the triggering message and adds one warning. A forwarded photo album with one `media_group_id` counts as one message.
+- A second flood burst within 60 seconds applies a 5 minute mute.
+- Link spam counts URLs from one user in one chat across 30 seconds. More than 5 URLs applies a 10 minute mute; a single message with more than 3 URLs is deleted.
+- A blacklist rule can delete, warn, or mute. A blacklist mute uses the minutes configured in `/blacklist_add word mute MINUTES`.
+- Flood and link counters are held in memory and reset when the service restarts. Warnings and mute expiry are stored in MySQL.
+
+Mute duration works in all target formats: reply with `/mute 60`, mention with `/mute @user 60`, or ID with `/mute 123456 60`. If no minutes are supplied, the default is 15 minutes.
 
 ---
 
