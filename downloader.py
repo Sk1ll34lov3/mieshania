@@ -54,7 +54,7 @@ TIKTOK_COOKIES    = "/var/opt/mieshania/cookies_tiktok.txt"
 
 # Хости, які вважаємо підтримуваними
 VIDEO_HOSTS = (
-    "youtube.com", "youtu.be",
+    "youtube.com", "youtu.be",  # з YouTube підтримуємо лише Shorts, див. is_supported()
     "tiktok.com", "vm.tiktok.com",
     "instagram.com", "www.instagram.com", "m.instagram.com",
     "x.com", "twitter.com",
@@ -773,8 +773,29 @@ def _download_sync(url: str, profile: str = "auto") -> Tuple[List[Dict[str, str]
 
 # ===================== Публічний API для бота =====================
 
+YT_NOT_SUPPORTED_MSG = "Not supported (з YouTube — тільки Shorts)."
+
+
+def is_youtube_url(url: str) -> bool:
+    try:
+        host = (urlparse((url or "").strip()).hostname or "").lower()
+    except Exception:
+        return False
+    return host == "youtu.be" or host == "youtube.com" or host.endswith(".youtube.com")
+
+
+def is_youtube_shorts(url: str) -> bool:
+    try:
+        path = urlparse((url or "").strip()).path or ""
+    except Exception:
+        return False
+    return is_youtube_url(url) and path.lower().startswith("/shorts/")
+
+
 def is_supported(url: str) -> bool:
-    """Чи схожий URL на підтримуваний відео-хост."""
+    """Чи схожий URL на підтримуваний відео-хост (YouTube — тільки Shorts)."""
+    if is_youtube_url(url):
+        return is_youtube_shorts(url)
     u = (url or "").lower()
     return any(h in u for h in VIDEO_HOSTS)
 

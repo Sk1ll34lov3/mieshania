@@ -4,7 +4,7 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from downloader import download_url, is_supported
+from downloader import YT_NOT_SUPPORTED_MSG, download_url, is_supported, is_youtube_url
 from utils import remember_user, upsert_chat
 from handlers.menu import main_menu_keyboard
 
@@ -83,7 +83,9 @@ async def get_cmd(m: Message):
         return await m.answer("Використай: /get <url>")
     url = parts[1].strip()
     if not is_supported(url):
-        return await m.answer("Підтримую: YouTube, TikTok, Instagram (публічні).")
+        if is_youtube_url(url):
+            return await m.answer(YT_NOT_SUPPORTED_MSG)
+        return await m.answer("Підтримую: YouTube Shorts, TikTok, Instagram (публічні).")
     await m.answer("Секунду, тягну відео…")
     try:
         await download_url(m.chat.id, url, m.bot)
