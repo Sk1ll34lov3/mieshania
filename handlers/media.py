@@ -10,8 +10,8 @@ from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.dispatcher.event.bases import SkipHandler
 
-from downloader import download_url, get_media_info, is_supported
-from services.media import pick_first_supported_url
+from downloader import YT_NOT_SUPPORTED_MSG, download_url, get_media_info, is_supported, is_youtube_url
+from services.media import extract_urls, pick_first_supported_url
 from services.limits import is_download_allowed, record_download
 from services.settings import get_chat_settings
 from services.xp import add_download
@@ -19,6 +19,10 @@ from utils import remember_user, is_chat_admin, is_muted_now
 
 
 router = Router()
+
+
+def _unsupported_text(url: str) -> str:
+    return YT_NOT_SUPPORTED_MSG if is_youtube_url(url) else "Цей домен поки не підтримую."
 
 
 async def _ensure_media_enabled(m: Message) -> bool:
@@ -107,7 +111,7 @@ async def dl_audio_cmd(m: Message):
     if not url:
         return await m.answer("Використай: <code>/dl_audio &lt;url&gt;</code> або зроби reply на повідомлення з лінком.")
     if not is_supported(url):
-        return await m.answer("Цей домен поки не підтримую.")
+        return await m.answer(_unsupported_text(url))
     if not await _ensure_media_enabled(m):
         return
     if not await _check_download_limit(m, action="audio"):
@@ -131,7 +135,7 @@ async def dl_hd_cmd(m: Message):
     if not url:
         return await m.answer("Використай: <code>/dl_hd &lt;url&gt;</code> або зроби reply на повідомлення з лінком.")
     if not is_supported(url):
-        return await m.answer("Цей домен поки не підтримую.")
+        return await m.answer(_unsupported_text(url))
     if not await _ensure_media_enabled(m):
         return
     if not await _check_download_limit(m, action="hd"):
@@ -155,7 +159,7 @@ async def dl_sd_cmd(m: Message):
     if not url:
         return await m.answer("Використай: <code>/dl_sd &lt;url&gt;</code> або зроби reply на повідомлення з лінком.")
     if not is_supported(url):
-        return await m.answer("Цей домен поки не підтримую.")
+        return await m.answer(_unsupported_text(url))
     if not await _ensure_media_enabled(m):
         return
     if not await _check_download_limit(m, action="sd"):
@@ -179,7 +183,7 @@ async def dl_info_cmd(m: Message):
     if not url:
         return await m.answer("Використай: <code>/dl_info &lt;url&gt;</code> або зроби reply на повідомлення з лінком.")
     if not is_supported(url):
-        return await m.answer("Цей домен поки не підтримую.")
+        return await m.answer(_unsupported_text(url))
     if not await _ensure_media_enabled(m):
         return
     try:
@@ -219,6 +223,8 @@ async def link_buttons_on_message(m: Message):
         raise SkipHandler
     url = pick_first_supported_url(m)
     if not url:
+        if any(is_youtube_url(u) for u in extract_urls(m)):
+            await m.reply(YT_NOT_SUPPORTED_MSG)
         raise SkipHandler
     # Авто-стратегія: пост лінка = одне автоматичне завантаження.
     if m.from_user:
